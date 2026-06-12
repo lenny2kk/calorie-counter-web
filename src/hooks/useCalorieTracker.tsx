@@ -50,7 +50,7 @@ interface CalorieTrackerContextType {
 const CalorieTrackerContext = createContext<CalorieTrackerContextType | undefined>(undefined);
 
 const DEFAULT_MEAL = (): MealEntry => ({ calories: 0, protein: 0, carbs: 0, fat: 0, items: [] });
-const DEFAULT_API_KEY = 'AQ.Ab8RN6Ico5N5yuZzpEMDUd35PGQ2gNiVHkKYhP56nbI91N87vA';
+const DEFAULT_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
 
 export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Biometrics
