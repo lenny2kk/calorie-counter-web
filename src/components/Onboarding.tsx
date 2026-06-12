@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCalorieTracker } from '../hooks/useCalorieTracker';
+import { FirebaseError } from 'firebase/app';
 
 export const Onboarding: React.FC = () => {
   const { saveOnboarding } = useCalorieTracker();
@@ -9,7 +10,7 @@ export const Onboarding: React.FC = () => {
   const [gender, setGender] = useState<'Mężczyzna' | 'Kobieta'>('Mężczyzna');
   const [activityLevel, setActivityLevel] = useState(1.2);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const w = parseFloat(weight);
     const h = parseFloat(height);
@@ -25,7 +26,15 @@ export const Onboarding: React.FC = () => {
     const bmr = 10 * w + 6.25 * h - 5 * a + s;
     const tdee = Math.round(bmr * activityLevel);
 
-    saveOnboarding(w, h, a, gender, activityLevel, tdee);
+    try {
+      await saveOnboarding(w, h, a, gender, activityLevel, tdee);
+    } catch (err) {
+      if (err instanceof FirebaseError) {
+        console.error('Błąd zapisu profilu w Firebase:', err.message);
+      } else {
+        console.error('Nieznany błąd zapisu:', err);
+      }
+    }
   };
 
   const isFormValid = weight && height && age;

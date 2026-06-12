@@ -1,4 +1,5 @@
 import type { DietitianReport } from '../types';
+import { FirebaseError } from 'firebase/app';
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
 
@@ -98,6 +99,9 @@ Dane użytkownika z dzisiejszego dnia (stan na 18:00):
     const report: DietitianReport = JSON.parse(cleanText);
     return report;
   } catch (err) {
+    if (err instanceof FirebaseError) {
+      console.error('Firebase error context:', err.code);
+    }
     console.error('Błąd parsowania JSON:', rawText, err);
     throw new Error('Nie udało się zinterpretować danych raportu. Odpowiedź nie była poprawnym formatem JSON.');
   }
@@ -160,6 +164,9 @@ Posiłek do analizy na 100g: ${inputText}`;
     const mealResult: AIMealResult = JSON.parse(cleanText);
     return mealResult;
   } catch (err) {
+    if (err instanceof FirebaseError) {
+      console.error('Firebase error context:', err.code);
+    }
     console.error('Błąd parsowania JSON posiłku:', rawText, err);
     throw new Error('Nie udało się zinterpretować wartości odżywczych dla potrawy.');
   }

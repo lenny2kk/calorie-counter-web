@@ -6,6 +6,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { Mail, Lock, AlertTriangle, KeyRound } from 'lucide-react';
+import { FirebaseError } from 'firebase/app';
 
 export const Auth: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -43,7 +44,8 @@ export const Auth: React.FC = () => {
           activityLevel: 1.2,
           tdee: 2000,
           isStrictLimitMode: true,
-          apiKey: ''
+          apiKey: '',
+          onboardingCompleted: false
         });
 
         // Initialize default statistics document in Firestore
@@ -56,19 +58,23 @@ export const Auth: React.FC = () => {
         });
       } else {
         // Sign in
-        await signInWithEmailAndPassword(auth, email.trim(), password);
+        const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+        const user = userCredential.user;
+        console.log('Zalogowano użytkownika:', user.uid);
       }
     } catch (err: any) {
       console.error('Błąd autoryzacji:', err);
       let plMessage = 'Nie udało się połączyć z kontem. Sprawdź swoje dane logowania.';
-      if (err.code === 'auth/email-already-in-use') {
-        plMessage = 'Ten adres e-mail jest już zajęty.';
-      } else if (err.code === 'auth/invalid-email') {
-        plMessage = 'Niepoprawny format adresu e-mail.';
-      } else if (err.code === 'auth/weak-password') {
-        plMessage = 'Hasło jest zbyt słabe.';
-      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        plMessage = 'Niepoprawny e-mail lub hasło.';
+      if (err instanceof FirebaseError) {
+        if (err.code === 'auth/email-already-in-use') {
+          plMessage = 'Ten adres e-mail jest już zajęty.';
+        } else if (err.code === 'auth/invalid-email') {
+          plMessage = 'Niepoprawny format adresu e-mail.';
+        } else if (err.code === 'auth/weak-password') {
+          plMessage = 'Hasło jest zbyt słabe.';
+        } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+          plMessage = 'Niepoprawny e-mail lub hasło.';
+        }
       }
       setErrorMessage(plMessage);
     } finally {
