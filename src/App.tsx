@@ -10,6 +10,7 @@ import { Statistics } from './components/Statistics';
 import { Settings } from './components/Settings';
 import { DietitianReportModal } from './components/DietitianReportModal';
 import { AISmartMealModal } from './components/AISmartMealModal';
+import { Auth } from './components/Auth';
 import { useCalorieTracker } from './hooks/useCalorieTracker';
 import {
   CalendarDays,
@@ -31,7 +32,7 @@ type SubPage =
 
 // ─── Inner App (has access to context) ───────────────────────────────────────
 function InnerApp() {
-  const { onboardingCompleted } = useCalorieTracker();
+  const { user, authLoading, onboardingCompleted } = useCalorieTracker();
 
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [subPage, setSubPage] = useState<SubPage>({ view: 'dashboard' });
@@ -40,6 +41,19 @@ function InnerApp() {
   const [isDietitianOpen, setIsDietitianOpen] = useState(false);
   const [isAISheetOpen, setIsAISheetOpen] = useState(false);
   const [aiSheetCategory, setAiSheetCategory] = useState<MealCategoryId>('breakfast');
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
+        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-slate-400 text-sm font-semibold tracking-wide animate-pulse">Ładowanie profilu chmury...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Auth />;
+  }
 
   if (!onboardingCompleted) {
     return <Onboarding />;

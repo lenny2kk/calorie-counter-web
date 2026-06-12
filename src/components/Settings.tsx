@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useCalorieTracker } from '../hooks/useCalorieTracker';
-import { Settings as SettingsIcon, Bell, Shield, Key, Database, RefreshCw } from 'lucide-react';
+import { Settings as SettingsIcon, Bell, Shield, Key, Database, RefreshCw, Trash2, LogOut } from 'lucide-react';
 
 export const Settings: React.FC = () => {
   const {
@@ -18,7 +18,9 @@ export const Settings: React.FC = () => {
     addReminder,
     deleteReminder,
     setApiKey,
-    loadDemoData
+    loadDemoData,
+    user,
+    logout
   } = useCalorieTracker();
 
   // Biometrics editing states
@@ -356,21 +358,62 @@ export const Settings: React.FC = () => {
       </div>
 
       {/* SECTION: DEVELOPER DEMO DATA */}
-      <div className="glass-card rounded-2xl p-5 border border-dashed border-slate-800 space-y-3">
+      <div className="glass-card rounded-2xl p-5 border border-dashed border-slate-800 space-y-4">
         <h3 className="text-xs font-bold text-slate-400 flex items-center space-x-2">
           <Database className="w-4 h-4" />
-          <span>Dane demonstracyjne</span>
+          <span>Zarządzanie danymi i testy</span>
         </h3>
         <p className="text-[10px] text-slate-500 leading-normal">
           Załaduj przykładową historię kalorii z ostatnich 14 dni oraz logi treningów na siłowni, aby zweryfikować działanie wykresów postępów.
         </p>
-        <button
-          onClick={loadDemoData}
-          className="w-full flex items-center justify-center space-x-2 py-3 border border-slate-800 bg-slate-950 hover:bg-slate-900 text-emerald-400 font-bold rounded-xl text-xs active:scale-[0.98] transition-all cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Załaduj demo historyczne</span>
-        </button>
+        
+        <div className="space-y-2.5">
+          <button
+            onClick={loadDemoData}
+            className="w-full flex items-center justify-center space-x-2 py-3 border border-slate-800 bg-slate-950 hover:bg-slate-900 text-emerald-400 font-bold rounded-xl text-xs active:scale-[0.98] transition-all cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Załaduj demo historyczne</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (confirm('Czy na pewno chcesz usunąć wszystkie dane, statystyki i profil? Zostaniesz przeniesiony do ekranu powitalnego.')) {
+                localStorage.clear();
+                window.location.reload();
+              }
+            }}
+            className="w-full flex items-center justify-center space-x-2 py-3 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-500 font-bold rounded-xl text-xs active:scale-[0.98] transition-all cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Usuń wszystkie dane aplikacji</span>
+          </button>
+        </div>
+      </div>
+
+      {/* SECTION: USER ACCOUNT */}
+      <div className="glass-card rounded-2xl p-5 space-y-4">
+        <h3 className="text-sm font-bold text-slate-200 flex items-center space-x-2">
+          <LogOut className="w-5 h-5 text-red-400" />
+          <span>Moje Konto</span>
+        </h3>
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <span className="block text-xxs font-bold text-slate-500 uppercase tracking-wider">Zalogowany e-mail</span>
+            <span className="text-xs text-slate-300 font-medium">{user?.email || 'Brak danych'}</span>
+          </div>
+          <button
+            onClick={() => {
+              if (confirm('Czy na pewno chcesz się wylogować?')) {
+                logout();
+              }
+            }}
+            className="flex items-center space-x-1.5 px-4 py-2 border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 font-bold rounded-xl text-xs active:scale-[0.95] transition-all cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Wyloguj się</span>
+          </button>
+        </div>
       </div>
     </div>
   );

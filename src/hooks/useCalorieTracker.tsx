@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { MealEntry, MealItem, HistoricalDay, WorkoutEntry, HistoryProduct, CustomProduct, ReminderTime, DietitianReport } from '../types';
+import { auth, db } from '../services/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import type { User } from 'firebase/auth';
+import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 
 interface CalorieTrackerContextType {
+  user: User | null;
+  authLoading: boolean;
   onboardingCompleted: boolean;
   tdee: number;
   isStrictLimitMode: boolean;
@@ -28,23 +34,24 @@ interface CalorieTrackerContextType {
   totalCarbs: number;
   totalFat: number;
   
-  // Setters
-  saveOnboarding: (weight: number, height: number, age: number, gender: 'Mężczyzna' | 'Kobieta', activityLevel: number, tdee: number) => void;
-  updateMealItem: (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', item: MealItem) => void;
-  deleteMealItem: (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', itemId: string) => void;
-  updateMealManual: (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', field: 'calories' | 'protein' | 'carbs' | 'fat', value: number) => void;
-  clearMeal: (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks') => void;
-  updateProfile: (profile: { weight?: number; height?: number; age?: number; gender?: 'Mężczyzna' | 'Kobieta'; activityLevel?: number; tdee?: number }) => void;
-  setStrictLimitMode: (mode: boolean) => void;
-  addWorkoutEntry: (entry: Omit<WorkoutEntry, 'id'>) => void;
-  deleteWorkoutEntry: (id: string) => void;
-  addProductToHistory: (id: string, name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number) => void;
-  addCustomProduct: (name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number) => void;
-  addReminder: (hour: number, minute: number) => void;
-  deleteReminder: (id: string) => void;
-  setApiKey: (key: string) => void;
-  setLatestReport: (report: DietitianReport | null) => void;
-  loadDemoData: () => void;
+  // Setters & Actions
+  saveOnboarding: (weight: number, height: number, age: number, gender: 'Mężczyzna' | 'Kobieta', activityLevel: number, tdee: number) => Promise<void>;
+  updateMealItem: (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', item: MealItem) => Promise<void>;
+  deleteMealItem: (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', itemId: string) => Promise<void>;
+  updateMealManual: (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', field: 'calories' | 'protein' | 'carbs' | 'fat', value: number) => Promise<void>;
+  clearMeal: (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks') => Promise<void>;
+  updateProfile: (profile: { weight?: number; height?: number; age?: number; gender?: 'Mężczyzna' | 'Kobieta'; activityLevel?: number; tdee?: number }) => Promise<void>;
+  setStrictLimitMode: (mode: boolean) => Promise<void>;
+  addWorkoutEntry: (entry: Omit<WorkoutEntry, 'id'>) => Promise<void>;
+  deleteWorkoutEntry: (id: string) => Promise<void>;
+  addProductToHistory: (id: string, name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number) => Promise<void>;
+  addCustomProduct: (name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number) => Promise<void>;
+  addReminder: (hour: number, minute: number) => Promise<void>;
+  deleteReminder: (id: string) => Promise<void>;
+  setApiKey: (key: string) => Promise<void>;
+  setLatestReport: (report: DietitianReport | null) => Promise<void>;
+  loadDemoData: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const CalorieTrackerContext = createContext<CalorieTrackerContextType | undefined>(undefined);
@@ -53,63 +60,43 @@ const DEFAULT_MEAL = (): MealEntry => ({ calories: 0, protein: 0, carbs: 0, fat:
 const DEFAULT_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
 
 export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Biometrics
-  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(() => localStorage.getItem('has_completed_onboarding') === 'true');
-  const [tdee, setTdee] = useState<number>(() => Number(localStorage.getItem('user_tdee')) || 2000);
-  const [isStrictLimitMode, setStrictLimitModeState] = useState<boolean>(() => localStorage.getItem('is_strict_limit_mode') !== 'false');
-  const [weight, setWeight] = useState<number>(() => Number(localStorage.getItem('user_weight')) || 80);
-  const [height, setHeight] = useState<number>(() => Number(localStorage.getItem('user_height')) || 180);
-  const [age, setAge] = useState<number>(() => Number(localStorage.getItem('user_age')) || 25);
-  const [gender, setGender] = useState<'Mężczyzna' | 'Kobieta'>(() => (localStorage.getItem('user_gender') as 'Mężczyzna' | 'Kobieta') || 'Mężczyzna');
-  const [activityLevel, setActivityLevel] = useState<number>(() => Number(localStorage.getItem('user_activity_level')) || 1.2);
-  const [apiKey, setApiKeyState] = useState<string>(() => localStorage.getItem('gemini_api_key') || DEFAULT_API_KEY);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
-  // Meals
+  // Profile fields
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(false);
+  const [tdee, setTdee] = useState<number>(2000);
+  const [isStrictLimitMode, setStrictLimitModeState] = useState<boolean>(true);
+  const [weight, setWeight] = useState<number>(80);
+  const [height, setHeight] = useState<number>(180);
+  const [age, setAge] = useState<number>(25);
+  const [gender, setGender] = useState<'Mężczyzna' | 'Kobieta'>('Mężczyzna');
+  const [activityLevel, setActivityLevel] = useState<number>(1.2);
+  const [apiKey, setApiKeyState] = useState<string>(DEFAULT_API_KEY);
+
+  // Meals (Loaded per current date)
   const [meals, setMeals] = useState<{
     breakfast: MealEntry;
     lunch: MealEntry;
     dinner: MealEntry;
     snacks: MealEntry;
-  }>(() => {
-    const b = localStorage.getItem('meal_breakfast_json');
-    const l = localStorage.getItem('meal_lunch_json');
-    const d = localStorage.getItem('meal_dinner_json');
-    const s = localStorage.getItem('meal_snacks_json');
-    return {
-      breakfast: b ? JSON.parse(b) : DEFAULT_MEAL(),
-      lunch: l ? JSON.parse(l) : DEFAULT_MEAL(),
-      dinner: d ? JSON.parse(d) : DEFAULT_MEAL(),
-      snacks: s ? JSON.parse(s) : DEFAULT_MEAL(),
-    };
+  }>({
+    breakfast: DEFAULT_MEAL(),
+    lunch: DEFAULT_MEAL(),
+    dinner: DEFAULT_MEAL(),
+    snacks: DEFAULT_MEAL(),
   });
+  const [latestReport, setLatestReportState] = useState<DietitianReport | null>(null);
 
-  // History & Gym
-  const [historicalDays, setHistoricalDays] = useState<HistoricalDay[]>(() => {
-    const days = localStorage.getItem('historical_days_json');
-    return days ? JSON.parse(days) : [];
-  });
-  const [latestReport, setLatestReportState] = useState<DietitianReport | null>(() => {
-    const r = localStorage.getItem('latest_dietitian_report');
-    return r ? JSON.parse(r) : null;
-  });
-  const [workoutEntries, setWorkoutEntries] = useState<WorkoutEntry[]>(() => {
-    const workouts = localStorage.getItem('workout_entries_json');
-    return workouts ? JSON.parse(workouts) : [];
-  });
+  // Lists stored in `/users/{userId}/statistics/data`
+  const [historicalDays, setHistoricalDays] = useState<HistoricalDay[]>([]);
+  const [workoutEntries, setWorkoutEntries] = useState<WorkoutEntry[]>([]);
+  const [productsHistory, setProductsHistory] = useState<HistoryProduct[]>([]);
+  const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
+  const [reminders, setReminders] = useState<ReminderTime[]>([]);
 
-  // Product Lists & Reminders
-  const [productsHistory, setProductsHistory] = useState<HistoryProduct[]>(() => {
-    const hist = localStorage.getItem('products_history_json');
-    return hist ? JSON.parse(hist) : [];
-  });
-  const [customProducts, setCustomProducts] = useState<CustomProduct[]>(() => {
-    const cust = localStorage.getItem('custom_products_json');
-    return cust ? JSON.parse(cust) : [];
-  });
-  const [reminders, setReminders] = useState<ReminderTime[]>(() => {
-    const rems = localStorage.getItem('user_reminders_list');
-    return rems ? JSON.parse(rems) : [];
-  });
+  // Get current date string YYYY-MM-DD
+  const todayStr = new Date().toISOString().split('T')[0];
 
   // Derived Totals
   const totalEaten = meals.breakfast.calories + meals.lunch.calories + meals.dinner.calories + meals.snacks.calories;
@@ -117,224 +104,270 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   const totalCarbs = meals.breakfast.carbs + meals.lunch.carbs + meals.dinner.carbs + meals.snacks.carbs;
   const totalFat = meals.breakfast.fat + meals.lunch.fat + meals.dinner.fat + meals.snacks.fat;
 
-  // Persists to localStorage whenever values change
+  // Listen to Auth State changes
   useEffect(() => {
-    localStorage.setItem('has_completed_onboarding', String(onboardingCompleted));
-    localStorage.setItem('user_tdee', String(tdee));
-    localStorage.setItem('is_strict_limit_mode', String(isStrictLimitMode));
-    localStorage.setItem('user_weight', String(weight));
-    localStorage.setItem('user_height', String(height));
-    localStorage.setItem('user_age', String(age));
-    localStorage.setItem('user_gender', gender);
-    localStorage.setItem('user_activity_level', String(activityLevel));
-    localStorage.setItem('gemini_api_key', apiKey);
-  }, [onboardingCompleted, tdee, isStrictLimitMode, weight, height, age, gender, activityLevel, apiKey]);
-
-  useEffect(() => {
-    localStorage.setItem('meal_breakfast_json', JSON.stringify(meals.breakfast));
-    localStorage.setItem('meal_lunch_json', JSON.stringify(meals.lunch));
-    localStorage.setItem('meal_dinner_json', JSON.stringify(meals.dinner));
-    localStorage.setItem('meal_snacks_json', JSON.stringify(meals.snacks));
-  }, [meals]);
-
-  useEffect(() => {
-    localStorage.setItem('historical_days_json', JSON.stringify(historicalDays));
-  }, [historicalDays]);
-
-  useEffect(() => {
-    localStorage.setItem('latest_dietitian_report', latestReport ? JSON.stringify(latestReport) : '');
-  }, [latestReport]);
-
-  useEffect(() => {
-    localStorage.setItem('workout_entries_json', JSON.stringify(workoutEntries));
-  }, [workoutEntries]);
-
-  useEffect(() => {
-    localStorage.setItem('products_history_json', JSON.stringify(productsHistory));
-  }, [productsHistory]);
-
-  useEffect(() => {
-    localStorage.setItem('custom_products_json', JSON.stringify(customProducts));
-  }, [customProducts]);
-
-  useEffect(() => {
-    localStorage.setItem('user_reminders_list', JSON.stringify(reminders));
-  }, [reminders]);
-
-  // Save Current Day's totals to history
-  const saveCurrentDayLive = (customEaten?: number) => {
-    const eaten = customEaten !== undefined ? customEaten : totalEaten;
-    const todayStr = new Date().toISOString().split('T')[0];
-    
-    setHistoricalDays((prevDays) => {
-      const idx = prevDays.findIndex((day) => day.date.startsWith(todayStr));
-      if (idx >= 0) {
-        const updated = [...prevDays];
-        updated[idx] = { ...updated[idx], caloriesEaten: eaten };
-        return updated;
-      } else {
-        return [...prevDays, { id: crypto.randomUUID(), date: new Date().toISOString(), caloriesEaten: eaten }];
-      }
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
     });
-  };
+    return unsubscribe;
+  }, []);
 
-  // Run day reset check on mount
+  // Listen to Firestore documents when user is logged in
   useEffect(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const lastOpened = localStorage.getItem('last_opened_date') || '';
-    
-    if (!lastOpened) {
-      localStorage.setItem('last_opened_date', todayStr);
-      saveCurrentDayLive();
-    } else if (lastOpened !== todayStr) {
-      // Midnight reset! Clear meals, archive previous day
+    if (!user) {
+      // Clear data states if logged out
+      setOnboardingCompleted(false);
+      setTdee(2000);
+      setStrictLimitModeState(true);
+      setWeight(80);
+      setHeight(180);
+      setAge(25);
+      setGender('Mężczyzna');
+      setActivityLevel(1.2);
+      setApiKeyState(DEFAULT_API_KEY);
       setMeals({
         breakfast: DEFAULT_MEAL(),
         lunch: DEFAULT_MEAL(),
         dinner: DEFAULT_MEAL(),
         snacks: DEFAULT_MEAL(),
       });
-      // Clear latest dietitian report for a new day
       setLatestReportState(null);
-      localStorage.setItem('last_opened_date', todayStr);
-      // Create empty day in history
-      setHistoricalDays((prevDays) => {
-        const idx = prevDays.findIndex((day) => day.date.startsWith(todayStr));
-        if (idx >= 0) return prevDays;
-        return [...prevDays, { id: crypto.randomUUID(), date: new Date().toISOString(), caloriesEaten: 0 }];
-      });
+      setHistoricalDays([]);
+      setWorkoutEntries([]);
+      setProductsHistory([]);
+      setCustomProducts([]);
+      setReminders([]);
+      return;
     }
-  }, []);
 
-  // Save current day whenever totalEaten changes
+    // 1. Subscribe to User Profile
+    const profileRef = doc(db, 'users', user.uid, 'profile', 'data');
+    const unsubProfile = onSnapshot(profileRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setWeight(data.weight || 80);
+        setHeight(data.height || 180);
+        setAge(data.age || 25);
+        setGender(data.gender || 'Mężczyzna');
+        setActivityLevel(data.activityLevel || 1.2);
+        setTdee(data.tdee || 2000);
+        setStrictLimitModeState(data.isStrictLimitMode !== false);
+        setApiKeyState(data.apiKey || DEFAULT_API_KEY);
+        setOnboardingCompleted(data.onboardingCompleted === true);
+      } else {
+        setOnboardingCompleted(false);
+      }
+    });
+
+    // 2. Subscribe to Today's Meals
+    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    const unsubMeals = onSnapshot(mealsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setMeals({
+          breakfast: data.breakfast || DEFAULT_MEAL(),
+          lunch: data.lunch || DEFAULT_MEAL(),
+          dinner: data.dinner || DEFAULT_MEAL(),
+          snacks: data.snacks || DEFAULT_MEAL(),
+        });
+        setLatestReportState(data.latestReport || null);
+      } else {
+        setMeals({
+          breakfast: DEFAULT_MEAL(),
+          lunch: DEFAULT_MEAL(),
+          dinner: DEFAULT_MEAL(),
+          snacks: DEFAULT_MEAL(),
+        });
+        setLatestReportState(null);
+      }
+    });
+
+    // 3. Subscribe to Statistics dataset
+    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    const unsubStats = onSnapshot(statsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setHistoricalDays(data.historicalDays || []);
+        setWorkoutEntries(data.workoutEntries || []);
+        setProductsHistory(data.productsHistory || []);
+        setCustomProducts(data.customProducts || []);
+        setReminders(data.reminders || []);
+      }
+    });
+
+    return () => {
+      unsubProfile();
+      unsubMeals();
+      unsubStats();
+    };
+  }, [user, todayStr]);
+
+  // Synchronize dynamic day totals to history when logged meals update
   useEffect(() => {
-    if (onboardingCompleted) {
-      saveCurrentDayLive(totalEaten);
+    if (!user || !onboardingCompleted) return;
+
+    // Check if we need to archive today's sum to history
+    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    const todayLogIdx = historicalDays.findIndex(day => day.date.startsWith(todayStr));
+    
+    let updatedHistory = [...historicalDays];
+    if (todayLogIdx >= 0) {
+      if (updatedHistory[todayLogIdx].caloriesEaten !== totalEaten) {
+        updatedHistory[todayLogIdx] = { ...updatedHistory[todayLogIdx], caloriesEaten: totalEaten };
+        updateDoc(statsRef, { historicalDays: updatedHistory }).catch(console.error);
+      }
+    } else {
+      updatedHistory.push({ id: crypto.randomUUID(), date: new Date().toISOString(), caloriesEaten: totalEaten });
+      updateDoc(statsRef, { historicalDays: updatedHistory }).catch(console.error);
     }
-  }, [totalEaten, onboardingCompleted]);
+  }, [totalEaten, user, onboardingCompleted]);
 
-  // Core Setters
-  const saveOnboarding = (w: number, h: number, a: number, g: 'Mężczyzna' | 'Kobieta', al: number, computedTdee: number) => {
-    setWeight(w);
-    setHeight(h);
-    setAge(a);
-    setGender(g);
-    setActivityLevel(al);
-    setTdee(computedTdee);
-    setOnboardingCompleted(true);
+  // Actions
+  const saveOnboarding = async (w: number, h: number, a: number, g: 'Mężczyzna' | 'Kobieta', al: number, computedTdee: number) => {
+    if (!user) return;
+    const profileRef = doc(db, 'users', user.uid, 'profile', 'data');
+    await setDoc(profileRef, {
+      weight: w,
+      height: h,
+      age: a,
+      gender: g,
+      activityLevel: al,
+      tdee: computedTdee,
+      isStrictLimitMode,
+      apiKey,
+      onboardingCompleted: true
+    }, { merge: true });
   };
 
-  const updateMealItem = (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', item: MealItem) => {
-    setMeals((prev) => {
-      const entry = prev[category];
-      const items = [...entry.items, item];
-      
-      const calories = entry.calories + item.calories;
-      const protein = entry.protein + item.protein;
-      const carbs = entry.carbs + item.carbs;
-      const fat = entry.fat + item.fat;
+  const updateMealItem = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', item: MealItem) => {
+    if (!user) return;
+    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    const currentEntry = meals[category];
+    const updatedItems = [...currentEntry.items, item];
 
-      return {
-        ...prev,
-        [category]: { calories, protein, carbs, fat, items }
-      };
-    });
+    const updatedEntry: MealEntry = {
+      calories: currentEntry.calories + item.calories,
+      protein: currentEntry.protein + item.protein,
+      carbs: currentEntry.carbs + item.carbs,
+      fat: currentEntry.fat + item.fat,
+      items: updatedItems
+    };
+
+    await setDoc(mealsRef, {
+      [category]: updatedEntry
+    }, { merge: true });
   };
 
-  const deleteMealItem = (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', itemId: string) => {
-    setMeals((prev) => {
-      const entry = prev[category];
-      const idx = entry.items.findIndex(item => item.id === itemId);
-      if (idx === -1) return prev;
+  const deleteMealItem = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', itemId: string) => {
+    if (!user) return;
+    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    const currentEntry = meals[category];
+    const targetItem = currentEntry.items.find(it => it.id === itemId);
+    if (!targetItem) return;
 
-      const item = entry.items[idx];
-      const items = entry.items.filter(it => it.id !== itemId);
-      
-      const calories = Math.max(0, entry.calories - item.calories);
-      const protein = Math.max(0, entry.protein - item.protein);
-      const carbs = Math.max(0, entry.carbs - item.carbs);
-      const fat = Math.max(0, entry.fat - item.fat);
+    const updatedItems = currentEntry.items.filter(it => it.id !== itemId);
+    const updatedEntry: MealEntry = {
+      calories: Math.max(0, currentEntry.calories - targetItem.calories),
+      protein: Math.max(0, currentEntry.protein - targetItem.protein),
+      carbs: Math.max(0, currentEntry.carbs - targetItem.carbs),
+      fat: Math.max(0, currentEntry.fat - targetItem.fat),
+      items: updatedItems
+    };
 
-      return {
-        ...prev,
-        [category]: { calories, protein, carbs, fat, items }
-      };
-    });
+    await setDoc(mealsRef, {
+      [category]: updatedEntry
+    }, { merge: true });
   };
 
-  const updateMealManual = (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', field: 'calories' | 'protein' | 'carbs' | 'fat', value: number) => {
-    setMeals((prev) => {
-      const entry = prev[category];
-      return {
-        ...prev,
-        [category]: {
-          ...entry,
-          [field]: value
-        }
-      };
-    });
+  const updateMealManual = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', field: 'calories' | 'protein' | 'carbs' | 'fat', value: number) => {
+    if (!user) return;
+    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    const currentEntry = meals[category];
+    const updatedEntry = {
+      ...currentEntry,
+      [field]: value
+    };
+
+    await setDoc(mealsRef, {
+      [category]: updatedEntry
+    }, { merge: true });
   };
 
-  const clearMeal = (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks') => {
-    setMeals((prev) => ({
-      ...prev,
+  const clearMeal = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks') => {
+    if (!user) return;
+    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    await setDoc(mealsRef, {
       [category]: DEFAULT_MEAL()
-    }));
+    }, { merge: true });
   };
 
-  const updateProfile = (profile: { weight?: number; height?: number; age?: number; gender?: 'Mężczyzna' | 'Kobieta'; activityLevel?: number; tdee?: number }) => {
-    if (profile.weight !== undefined) setWeight(profile.weight);
-    if (profile.height !== undefined) setHeight(profile.height);
-    if (profile.age !== undefined) setAge(profile.age);
-    if (profile.gender !== undefined) setGender(profile.gender);
-    if (profile.activityLevel !== undefined) setActivityLevel(profile.activityLevel);
-    if (profile.tdee !== undefined) setTdee(profile.tdee);
+  const updateProfile = async (profile: { weight?: number; height?: number; age?: number; gender?: 'Mężczyzna' | 'Kobieta'; activityLevel?: number; tdee?: number }) => {
+    if (!user) return;
+    const profileRef = doc(db, 'users', user.uid, 'profile', 'data');
+    await setDoc(profileRef, profile, { merge: true });
   };
 
-  const setStrictLimitMode = (mode: boolean) => {
-    setStrictLimitModeState(mode);
+  const setStrictLimitMode = async (mode: boolean) => {
+    if (!user) return;
+    const profileRef = doc(db, 'users', user.uid, 'profile', 'data');
+    await setDoc(profileRef, { isStrictLimitMode: mode }, { merge: true });
   };
 
-  const addWorkoutEntry = (entry: Omit<WorkoutEntry, 'id'>) => {
-    const newEntry: WorkoutEntry = {
+  const addWorkoutEntry = async (entry: Omit<WorkoutEntry, 'id'>) => {
+    if (!user) return;
+    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    const newWorkout: WorkoutEntry = {
       ...entry,
       id: crypto.randomUUID()
     };
-    setWorkoutEntries(prev => [...prev, newEntry]);
+    await setDoc(statsRef, {
+      workoutEntries: [...workoutEntries, newWorkout]
+    }, { merge: true });
   };
 
-  const deleteWorkoutEntry = (id: string) => {
-    setWorkoutEntries(prev => prev.filter(entry => entry.id !== id));
+  const deleteWorkoutEntry = async (id: string) => {
+    if (!user) return;
+    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    const updated = workoutEntries.filter(w => w.id !== id);
+    await setDoc(statsRef, {
+      workoutEntries: updated
+    }, { merge: true });
   };
 
-  const addProductToHistory = (id: string, name: string, kcal100: number, p100: number, c100: number, f100: number) => {
-    setProductsHistory(prev => {
-      const idx = prev.findIndex(item => item.id === id);
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = {
-          ...updated[idx],
-          useCount: updated[idx].useCount + 1,
-          lastUsed: new Date().toISOString()
-        };
-        return updated;
-      } else {
-        const newHist: HistoryProduct = {
-          id,
-          name,
-          kcalPer100g: kcal100,
-          proteinPer100g: p100,
-          carbsPer100g: c100,
-          fatPer100g: f100,
-          lastUsed: new Date().toISOString(),
-          useCount: 1
-        };
-        return [...prev, newHist];
-      }
-    });
+  const addProductToHistory = async (id: string, name: string, kcal100: number, p100: number, c100: number, f100: number) => {
+    if (!user) return;
+    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    const idx = productsHistory.findIndex(item => item.id === id);
+    
+    let updatedHistory = [...productsHistory];
+    if (idx >= 0) {
+      updatedHistory[idx] = {
+        ...updatedHistory[idx],
+        useCount: updatedHistory[idx].useCount + 1,
+        lastUsed: new Date().toISOString()
+      };
+    } else {
+      updatedHistory.push({
+        id,
+        name,
+        kcalPer100g: kcal100,
+        proteinPer100g: p100,
+        carbsPer100g: c100,
+        fatPer100g: f100,
+        lastUsed: new Date().toISOString(),
+        useCount: 1
+      });
+    }
+
+    await setDoc(statsRef, {
+      productsHistory: updatedHistory
+    }, { merge: true });
   };
 
-  const addCustomProduct = (name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number) => {
+  const addCustomProduct = async (name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number) => {
+    if (!user) return;
+    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
     const newProduct: CustomProduct = {
       id: crypto.randomUUID(),
       name,
@@ -343,38 +376,57 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       carbsPer100g,
       fatPer100g
     };
-    setCustomProducts(prev => [...prev, newProduct]);
+
+    await setDoc(statsRef, {
+      customProducts: [...customProducts, newProduct]
+    }, { merge: true });
   };
 
-  const addReminder = (hour: number, minute: number) => {
+  const addReminder = async (hour: number, minute: number) => {
+    if (!user) return;
+    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
     const newReminder: ReminderTime = {
       id: crypto.randomUUID(),
       hour,
       minute
     };
-    setReminders(prev => [...prev, newReminder]);
+
+    await setDoc(statsRef, {
+      reminders: [...reminders, newReminder]
+    }, { merge: true });
   };
 
-  const deleteReminder = (id: string) => {
-    setReminders(prev => prev.filter(rem => rem.id !== id));
+  const deleteReminder = async (id: string) => {
+    if (!user) return;
+    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    const updated = reminders.filter(r => r.id !== id);
+    await setDoc(statsRef, {
+      reminders: updated
+    }, { merge: true });
   };
 
-  const setApiKey = (key: string) => {
-    setApiKeyState(key);
+  const setApiKey = async (key: string) => {
+    if (!user) return;
+    const profileRef = doc(db, 'users', user.uid, 'profile', 'data');
+    await setDoc(profileRef, { apiKey: key }, { merge: true });
   };
 
-  const setLatestReport = (report: DietitianReport | null) => {
-    setLatestReportState(report);
+  const setLatestReport = async (report: DietitianReport | null) => {
+    if (!user) return;
+    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    await setDoc(mealsRef, { latestReport: report }, { merge: true });
   };
 
-  const loadDemoData = () => {
+  const loadDemoData = async () => {
+    if (!user) return;
+    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+
     // Generate historical days (last 14 days)
     const demoHistory: HistoricalDay[] = [];
     const now = new Date();
     for (let i = 14; i >= 1; i--) {
       const d = new Date(now);
       d.setDate(now.getDate() - i);
-      // Random calories between 1600 and 2400
       const randomCalories = Math.floor(Math.random() * 800) + 1600;
       demoHistory.push({
         id: crypto.randomUUID(),
@@ -385,64 +437,36 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
     // Generate workout entries
     const demoWorkouts: WorkoutEntry[] = [
-      {
-        id: crypto.randomUUID(),
-        date: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-        exerciseName: 'Wyciskanie leżąc',
-        weight: 60,
-        sets: 4,
-        reps: 10
-      },
-      {
-        id: crypto.randomUUID(),
-        date: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-        exerciseName: 'Przysiad ze sztangą',
-        weight: 80,
-        sets: 3,
-        reps: 8
-      },
-      {
-        id: crypto.randomUUID(),
-        date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        exerciseName: 'Wyciskanie leżąc',
-        weight: 62.5,
-        sets: 4,
-        reps: 10
-      },
-      {
-        id: crypto.randomUUID(),
-        date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        exerciseName: 'Martwy ciąg',
-        weight: 100,
-        sets: 3,
-        reps: 5
-      },
-      {
-        id: crypto.randomUUID(),
-        date: now.toISOString(),
-        exerciseName: 'Wyciskanie leżąc',
-        weight: 65,
-        sets: 4,
-        reps: 9
-      }
+      { id: crypto.randomUUID(), date: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Wyciskanie leżąc', weight: 60, sets: 4, reps: 10 },
+      { id: crypto.randomUUID(), date: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Przysiad ze sztangą', weight: 80, sets: 3, reps: 8 },
+      { id: crypto.randomUUID(), date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Wyciskanie leżąc', weight: 62.5, sets: 4, reps: 10 },
+      { id: crypto.randomUUID(), date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Martwy ciąg', weight: 100, sets: 3, reps: 5 },
+      { id: crypto.randomUUID(), date: now.toISOString(), exerciseName: 'Wyciskanie leżąc', weight: 65, sets: 4, reps: 9 }
     ];
 
-    setHistoricalDays(demoHistory);
-    setWorkoutEntries(demoWorkouts);
-    
-    // Add custom products
+    // Prepopulate custom products
     const demoCustom: CustomProduct[] = [
       { id: crypto.randomUUID(), name: "Odżywka Białkowa WPI", kcalPer100g: 380, proteinPer100g: 85, carbsPer100g: 3, fatPer100g: 2 },
       { id: crypto.randomUUID(), name: "Kreatyna Monohydrat", kcalPer100g: 0, proteinPer100g: 0, carbsPer100g: 0, fatPer100g: 0 }
     ];
-    setCustomProducts(demoCustom);
-    
-    // Alert the user
-    alert("Załadowano dane demonstracyjne! Wykresy w Statystykach i Siłowni posiadają teraz dane.");
+
+    await setDoc(statsRef, {
+      historicalDays: demoHistory,
+      workoutEntries: demoWorkouts,
+      customProducts: demoCustom
+    }, { merge: true });
+
+    alert("Załadowano dane demonstracyjne w chmurze Firestore!");
+  };
+
+  const logout = async () => {
+    await signOut(auth);
   };
 
   return (
     <CalorieTrackerContext.Provider value={{
+      user,
+      authLoading,
       onboardingCompleted,
       tdee,
       isStrictLimitMode,
@@ -479,7 +503,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       deleteReminder,
       setApiKey,
       setLatestReport,
-      loadDemoData
+      loadDemoData,
+      logout
     }}>
       {children}
     </CalorieTrackerContext.Provider>
