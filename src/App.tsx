@@ -12,6 +12,7 @@ import { DietitianReportModal } from './components/DietitianReportModal';
 import { AISmartMealModal } from './components/AISmartMealModal';
 import { Auth } from './components/Auth';
 import { useCalorieTracker } from './hooks/useCalorieTracker';
+import { firebaseInitError } from './services/firebase';
 import {
   CalendarDays,
   BarChart3,
@@ -41,6 +42,27 @@ function InnerApp() {
   const [isDietitianOpen, setIsDietitianOpen] = useState(false);
   const [isAISheetOpen, setIsAISheetOpen] = useState(false);
   const [aiSheetCategory, setAiSheetCategory] = useState<MealCategoryId>('breakfast');
+
+  if (firebaseInitError) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center space-y-6 animate-fade-in">
+        <div className="w-16 h-16 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center border border-red-500/20 shadow-lg shadow-red-500/5">
+          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <div className="space-y-2 max-w-sm">
+          <h1 className="text-xl font-bold text-slate-100">Błąd konfiguracji Firebase</h1>
+          <p className="text-slate-400 text-xs leading-relaxed">
+            Aplikacja nie mogła połączyć się z usługą Firebase. Upewnij się, że dodałeś poprawne zmienne środowiskowe w panelu Vercel (np. bez cudzysłowów).
+          </p>
+          <div className="bg-red-950/20 border border-red-500/10 rounded-xl p-3.5 text-left text-[11px] font-mono text-red-400 mt-4 overflow-x-auto whitespace-pre-wrap max-w-md mx-auto">
+            {firebaseInitError}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (authLoading) {
     return (

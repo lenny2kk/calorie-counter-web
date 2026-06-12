@@ -106,6 +106,10 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
   // Listen to Auth State changes
   useEffect(() => {
+    if (!auth) {
+      setAuthLoading(false);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
@@ -115,7 +119,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
   // Listen to Firestore documents when user is logged in
   useEffect(() => {
-    if (!user) {
+    if (!user || !db) {
       // Clear data states if logged out
       setOnboardingCompleted(false);
       setTdee(2000);
@@ -142,7 +146,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
     }
 
     // 1. Subscribe to User Profile
-    const profileRef = doc(db, 'users', user.uid, 'profile', 'data');
+    const profileRef = doc(db!, 'users', user.uid, 'profile', 'data');
     const unsubProfile = onSnapshot(profileRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -161,7 +165,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
     });
 
     // 2. Subscribe to Today's Meals
-    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
     const unsubMeals = onSnapshot(mealsRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -184,7 +188,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
     });
 
     // 3. Subscribe to Statistics dataset
-    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const unsubStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -205,10 +209,10 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
   // Synchronize dynamic day totals to history when logged meals update
   useEffect(() => {
-    if (!user || !onboardingCompleted) return;
+    if (!user || !onboardingCompleted || !db) return;
 
     // Check if we need to archive today's sum to history
-    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const todayLogIdx = historicalDays.findIndex(day => day.date.startsWith(todayStr));
     
     let updatedHistory = [...historicalDays];
@@ -225,8 +229,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
   // Actions
   const saveOnboarding = async (w: number, h: number, a: number, g: 'Mężczyzna' | 'Kobieta', al: number, computedTdee: number) => {
-    if (!user) return;
-    const profileRef = doc(db, 'users', user.uid, 'profile', 'data');
+    if (!user || !db) return;
+    const profileRef = doc(db!, 'users', user.uid, 'profile', 'data');
     await setDoc(profileRef, {
       weight: w,
       height: h,
@@ -241,8 +245,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const updateMealItem = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', item: MealItem) => {
-    if (!user) return;
-    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    if (!user || !db) return;
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
     const currentEntry = meals[category];
     const updatedItems = [...currentEntry.items, item];
 
@@ -260,8 +264,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const deleteMealItem = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', itemId: string) => {
-    if (!user) return;
-    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    if (!user || !db) return;
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
     const currentEntry = meals[category];
     const targetItem = currentEntry.items.find(it => it.id === itemId);
     if (!targetItem) return;
@@ -281,8 +285,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const updateMealManual = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', field: 'calories' | 'protein' | 'carbs' | 'fat', value: number) => {
-    if (!user) return;
-    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    if (!user || !db) return;
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
     const currentEntry = meals[category];
     const updatedEntry = {
       ...currentEntry,
@@ -295,28 +299,28 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const clearMeal = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks') => {
-    if (!user) return;
-    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    if (!user || !db) return;
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
     await setDoc(mealsRef, {
       [category]: DEFAULT_MEAL()
     }, { merge: true });
   };
 
   const updateProfile = async (profile: { weight?: number; height?: number; age?: number; gender?: 'Mężczyzna' | 'Kobieta'; activityLevel?: number; tdee?: number }) => {
-    if (!user) return;
-    const profileRef = doc(db, 'users', user.uid, 'profile', 'data');
+    if (!user || !db) return;
+    const profileRef = doc(db!, 'users', user.uid, 'profile', 'data');
     await setDoc(profileRef, profile, { merge: true });
   };
 
   const setStrictLimitMode = async (mode: boolean) => {
-    if (!user) return;
-    const profileRef = doc(db, 'users', user.uid, 'profile', 'data');
+    if (!user || !db) return;
+    const profileRef = doc(db!, 'users', user.uid, 'profile', 'data');
     await setDoc(profileRef, { isStrictLimitMode: mode }, { merge: true });
   };
 
   const addWorkoutEntry = async (entry: Omit<WorkoutEntry, 'id'>) => {
-    if (!user) return;
-    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    if (!user || !db) return;
+    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const newWorkout: WorkoutEntry = {
       ...entry,
       id: crypto.randomUUID()
@@ -327,8 +331,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const deleteWorkoutEntry = async (id: string) => {
-    if (!user) return;
-    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    if (!user || !db) return;
+    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const updated = workoutEntries.filter(w => w.id !== id);
     await setDoc(statsRef, {
       workoutEntries: updated
@@ -336,8 +340,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const addProductToHistory = async (id: string, name: string, kcal100: number, p100: number, c100: number, f100: number) => {
-    if (!user) return;
-    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    if (!user || !db) return;
+    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const idx = productsHistory.findIndex(item => item.id === id);
     
     let updatedHistory = [...productsHistory];
@@ -366,8 +370,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const addCustomProduct = async (name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number) => {
-    if (!user) return;
-    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    if (!user || !db) return;
+    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const newProduct: CustomProduct = {
       id: crypto.randomUUID(),
       name,
@@ -383,8 +387,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const addReminder = async (hour: number, minute: number) => {
-    if (!user) return;
-    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    if (!user || !db) return;
+    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const newReminder: ReminderTime = {
       id: crypto.randomUUID(),
       hour,
@@ -397,8 +401,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const deleteReminder = async (id: string) => {
-    if (!user) return;
-    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    if (!user || !db) return;
+    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const updated = reminders.filter(r => r.id !== id);
     await setDoc(statsRef, {
       reminders: updated
@@ -406,20 +410,20 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const setApiKey = async (key: string) => {
-    if (!user) return;
-    const profileRef = doc(db, 'users', user.uid, 'profile', 'data');
+    if (!user || !db) return;
+    const profileRef = doc(db!, 'users', user.uid, 'profile', 'data');
     await setDoc(profileRef, { apiKey: key }, { merge: true });
   };
 
   const setLatestReport = async (report: DietitianReport | null) => {
-    if (!user) return;
-    const mealsRef = doc(db, 'users', user.uid, 'meals', todayStr);
+    if (!user || !db) return;
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
     await setDoc(mealsRef, { latestReport: report }, { merge: true });
   };
 
   const loadDemoData = async () => {
-    if (!user) return;
-    const statsRef = doc(db, 'users', user.uid, 'statistics', 'data');
+    if (!user || !db) return;
+    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
 
     // Generate historical days (last 14 days)
     const demoHistory: HistoricalDay[] = [];
@@ -460,7 +464,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const logout = async () => {
-    await signOut(auth);
+    if (!auth) return;
+    await signOut(auth!);
   };
 
   return (

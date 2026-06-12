@@ -32,11 +32,11 @@ export const Auth: React.FC = () => {
     try {
       if (isRegisterMode) {
         // Create user
-        const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const credential = await createUserWithEmailAndPassword(auth!, email.trim(), password);
         const user = credential.user;
 
         // Initialize default profile document in Firestore
-        await setDoc(doc(db, 'users', user.uid, 'profile', 'data'), {
+        await setDoc(doc(db!, 'users', user.uid, 'profile', 'data'), {
           weight: 80,
           height: 180,
           age: 25,
@@ -49,7 +49,7 @@ export const Auth: React.FC = () => {
         });
 
         // Initialize default statistics document in Firestore
-        await setDoc(doc(db, 'users', user.uid, 'statistics', 'data'), {
+        await setDoc(doc(db!, 'users', user.uid, 'statistics', 'data'), {
           historicalDays: [],
           workoutEntries: [],
           productsHistory: [],
@@ -58,7 +58,7 @@ export const Auth: React.FC = () => {
         });
       } else {
         // Sign in
-        const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+        const userCredential = await signInWithEmailAndPassword(auth!, email.trim(), password);
         const user = userCredential.user;
         console.log('Zalogowano użytkownika:', user.uid);
       }
