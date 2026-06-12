@@ -185,7 +185,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
 
         <p className="text-slate-300 text-sm mb-4 leading-relaxed min-h-[40px]">
           {latestReport
-            ? latestReport.fullAnalysis.statusSummary
+            ? latestReport?.fullAnalysis?.statusSummary || 'Brak podsumowania'
             : 'Zaloguj posiłki, aby otrzymać spersonalizowaną wieczorną analizę i wskazówki od Twojego Dietetyka AI.'
           }
         </p>

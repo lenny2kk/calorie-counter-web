@@ -96,7 +96,25 @@ Dane użytkownika z dzisiejszego dnia (stan na 18:00):
 
   try {
     const cleanText = cleanJsonResponse(rawText);
-    const report: DietitianReport = JSON.parse(cleanText);
+    const parsed = JSON.parse(cleanText);
+
+    // Map snake_case to camelCase mapping to prevent runtime errors
+    const report: DietitianReport = {
+      pushNotification: {
+        title: parsed?.push_notification?.title || parsed?.pushNotification?.title || 'Podsumowanie dnia',
+        body: parsed?.push_notification?.body || parsed?.pushNotification?.body || '',
+      },
+      fullAnalysis: {
+        statusSummary: parsed?.full_analysis?.status_summary || parsed?.fullAnalysis?.statusSummary || 'Brak podsumowania',
+        caloriesRemaining: parsed?.full_analysis?.calories_remaining || parsed?.fullAnalysis?.caloriesRemaining || '',
+        macroCritique: {
+          protein: parsed?.full_analysis?.macro_critique?.protein || parsed?.fullAnalysis?.macroCritique?.protein || '',
+          carbs: parsed?.full_analysis?.macro_critique?.carbs || parsed?.fullAnalysis?.macroCritique?.carbs || '',
+          fat: parsed?.full_analysis?.macro_critique?.fat || parsed?.fullAnalysis?.macroCritique?.fat || '',
+        },
+        actionableAdvice: parsed?.full_analysis?.actionable_advice || parsed?.fullAnalysis?.actionableAdvice || '',
+      }
+    };
     return report;
   } catch (err) {
     if (err instanceof FirebaseError) {

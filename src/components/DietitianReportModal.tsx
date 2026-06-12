@@ -83,7 +83,7 @@ export const DietitianReportModal: React.FC<DietitianReportModalProps> = ({ isOp
             {/* Status Summary */}
             <div className="bg-slate-950/40 border border-slate-950 p-4 rounded-2xl">
               <span className="block text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1">Podsumowanie dnia</span>
-              <p className="text-sm font-semibold text-slate-200 leading-relaxed">{latestReport.fullAnalysis.statusSummary}</p>
+              <p className="text-sm font-semibold text-slate-200 leading-relaxed">{latestReport?.fullAnalysis?.statusSummary || 'Brak danych'}</p>
             </div>
 
             {/* Calorie Critique */}
@@ -93,7 +93,7 @@ export const DietitianReportModal: React.FC<DietitianReportModalProps> = ({ isOp
               </div>
               <div>
                 <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Bilans energetyczny</span>
-                <p className="text-sm font-semibold text-slate-200 leading-normal">{latestReport.fullAnalysis.caloriesRemaining}</p>
+                <p className="text-sm font-semibold text-slate-200 leading-normal">{latestReport?.fullAnalysis?.caloriesRemaining || 'Brak danych'}</p>
               </div>
             </div>
 
@@ -106,7 +106,7 @@ export const DietitianReportModal: React.FC<DietitianReportModalProps> = ({ isOp
                 <div className="w-6 h-6 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold flex-none mt-0.5">B</div>
                 <div className="space-y-0.5">
                   <span className="font-bold text-blue-400">Białko</span>
-                  <p className="text-slate-400 leading-relaxed">{latestReport.fullAnalysis.macroCritique.protein}</p>
+                  <p className="text-slate-400 leading-relaxed">{latestReport?.fullAnalysis?.macroCritique?.protein || 'Brak danych'}</p>
                 </div>
               </div>
 
@@ -117,7 +117,7 @@ export const DietitianReportModal: React.FC<DietitianReportModalProps> = ({ isOp
                 <div className="w-6 h-6 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold flex-none mt-0.5">W</div>
                 <div className="space-y-0.5">
                   <span className="font-bold text-amber-400">Węglowodany</span>
-                  <p className="text-slate-400 leading-relaxed">{latestReport.fullAnalysis.macroCritique.carbs}</p>
+                  <p className="text-slate-400 leading-relaxed">{latestReport?.fullAnalysis?.macroCritique?.carbs || 'Brak danych'}</p>
                 </div>
               </div>
 
@@ -128,7 +128,7 @@ export const DietitianReportModal: React.FC<DietitianReportModalProps> = ({ isOp
                 <div className="w-6 h-6 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center font-bold flex-none mt-0.5">T</div>
                 <div className="space-y-0.5">
                   <span className="font-bold text-purple-400">Tłuszcze</span>
-                  <p className="text-slate-400 leading-relaxed">{latestReport.fullAnalysis.macroCritique.fat}</p>
+                  <p className="text-slate-400 leading-relaxed">{latestReport?.fullAnalysis?.macroCritique?.fat || 'Brak danych'}</p>
                 </div>
               </div>
             </div>
@@ -139,7 +139,7 @@ export const DietitianReportModal: React.FC<DietitianReportModalProps> = ({ isOp
                 <Award className="w-4 h-4" />
                 <span>Wskazówka na wieczór</span>
               </div>
-              <p className="text-xs text-slate-300 leading-relaxed">{latestReport.fullAnalysis.actionableAdvice}</p>
+              <p className="text-xs text-slate-300 leading-relaxed">{latestReport?.fullAnalysis?.actionableAdvice || 'Brak danych'}</p>
             </div>
           </div>
         )}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useCalorieTracker } from '../hooks/useCalorieTracker';
 import { FirebaseError } from 'firebase/app';
+import { AlertTriangle } from 'lucide-react';
 
 export const Onboarding: React.FC = () => {
   const { saveOnboarding } = useCalorieTracker();
@@ -9,6 +10,8 @@ export const Onboarding: React.FC = () => {
   const [age, setAge] = useState('');
   const [gender, setGender] = useState<'Mężczyzna' | 'Kobieta'>('Mężczyzna');
   const [activityLevel, setActivityLevel] = useState(1.2);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +24,9 @@ export const Onboarding: React.FC = () => {
       return;
     }
 
+    setIsLoading(true);
+    setErrorMessage('');
+
     // Mifflin-St Jeor Equation
     const s = gender === 'Mężczyzna' ? 5 : -161;
     const bmr = 10 * w + 6.25 * h - 5 * a + s;
@@ -28,16 +34,21 @@ export const Onboarding: React.FC = () => {
 
     try {
       await saveOnboarding(w, h, a, gender, activityLevel, tdee);
-    } catch (err) {
+    } catch (err: any) {
+      console.error('Błąd zapisu profilu:', err);
+      let msg = 'Nie udało się zapisać danych. Upewnij się, że baza danych Cloud Firestore ma włączone poprawne reguły odczytu/zapisu (Security Rules).';
       if (err instanceof FirebaseError) {
-        console.error('Błąd zapisu profilu w Firebase:', err.message);
-      } else {
-        console.error('Nieznany błąd zapisu:', err);
+        msg = `Błąd Firebase: ${err.message} (${err.code})`;
+      } else if (err?.message) {
+        msg = err.message;
       }
+      setErrorMessage(msg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const isFormValid = weight && height && age;
+  const isFormValid = weight && height && age && !isLoading;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-slate-950">
@@ -62,6 +73,7 @@ export const Onboarding: React.FC = () => {
               onChange={(e) => setWeight(e.target.value)}
               placeholder="np. 80"
               required
+              disabled={isLoading}
               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors"
             />
           </div>
@@ -74,6 +86,7 @@ export const Onboarding: React.FC = () => {
               onChange={(e) => setHeight(e.target.value)}
               placeholder="np. 180"
               required
+              disabled={isLoading}
               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors"
             />
           </div>
@@ -86,6 +99,7 @@ export const Onboarding: React.FC = () => {
               onChange={(e) => setAge(e.target.value)}
               placeholder="np. 25"
               required
+              disabled={isLoading}
               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors"
             />
           </div>
@@ -95,6 +109,7 @@ export const Onboarding: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
+                disabled={isLoading}
                 onClick={() => setGender('Mężczyzna')}
                 className={`py-3 rounded-xl border text-sm font-medium transition-all ${
                   gender === 'Mężczyzna'
@@ -106,6 +121,7 @@ export const Onboarding: React.FC = () => {
               </button>
               <button
                 type="button"
+                disabled={isLoading}
                 onClick={() => setGender('Kobieta')}
                 className={`py-3 rounded-xl border text-sm font-medium transition-all ${
                   gender === 'Kobieta'
@@ -122,6 +138,7 @@ export const Onboarding: React.FC = () => {
             <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Poziom Aktywności</label>
             <select
               value={activityLevel}
+              disabled={isLoading}
               onChange={(e) => setActivityLevel(parseFloat(e.target.value))}
               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
             >
@@ -132,16 +149,31 @@ export const Onboarding: React.FC = () => {
             </select>
           </div>
 
+          {/* Error Message */}
+          {errorMessage && (
+            <div className="flex items-start bg-red-500/10 border border-red-500/20 p-3.5 rounded-xl text-xxs text-red-400 space-x-2 animate-fade-in">
+              <AlertTriangle className="w-4 h-4 flex-none" />
+              <span className="leading-relaxed font-semibold">{errorMessage}</span>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={!isFormValid}
-            className={`w-full py-4 rounded-xl text-center font-semibold text-white shadow-lg shadow-emerald-500/10 transition-all ${
+            className={`w-full py-4 rounded-xl text-center font-semibold text-white shadow-lg shadow-emerald-500/10 transition-all flex items-center justify-center space-x-2 ${
               isFormValid
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90 active:scale-[0.99] cursor-pointer'
                 : 'bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed'
             }`}
           >
-            Zapisz i przejdź dalej
+            {isLoading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Zapisywanie danych...</span>
+              </>
+            ) : (
+              <span>Zapisz i przejdź dalej</span>
+            )}
           </button>
         </form>
       </div>
