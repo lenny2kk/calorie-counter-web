@@ -189,3 +189,76 @@ Posiłek do analizy na 100g: ${inputText}`;
     throw new Error('Nie udało się zinterpretować wartości odżywczych dla potrawy.');
   }
 }
+
+export interface AIVisionResult {
+  portionGrams?: string | number;
+  calories?: string | number;
+  protein?: string | number;
+  carbs?: string | number;
+  fat?: string | number;
+}
+
+export async function analyzeLabelImage(params: {
+  apiKey: string;
+  imageBase64: string;
+}): Promise<AIVisionResult> {
+  const { apiKey, imageBase64 } = params;
+
+  if (!apiKey) {
+    throw new Error('Brak klucza API Gemini! Skonfiguruj go w Ustawieniach.');
+  }
+
+  const prompt = `Przeanalizuj to zdjęcie tabeli składników odżywczych. Wyciągnij z niego wyłącznie wartości odżywcze i zwróć je w czystym formacie JSON (bez bloków \`\`\`json i bez dodatkowego tekstu):
+  {
+    "portionGrams": "wartość w gramach, na jaką podane są dane w tabeli (np. 100 lub 30) - jeśli nie ma, domyślnie 100",
+    "calories": "energia w kcal",
+    "protein": "białko w g",
+    "carbs": "węglowodany w g",
+    "fat": "tłuszcz w g"
+  }
+  Skoncentruj się na polskich słowach kluczowych: energia, kalorie, białko, węglowodany, tłuszcz. Jeśli na zdjęciu nie ma tabeli, zwróć pusty obiekt {}.`;
+
+  const response = await fetch(`${BASE_URL}?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: 'image/jpeg',
+                data: imageBase64
+              }
+            }
+          ]
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData?.error?.message || `Błąd serwera (${response.status})`;
+    throw new Error(message);
+  }
+
+  const result = await response.json();
+  const rawText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!rawText) {
+    throw new Error('Brak tekstu w odpowiedzi od Gemini API.');
+  }
+
+  try {
+    const cleanText = cleanJsonResponse(rawText);
+    const parsed = JSON.parse(cleanText);
+    return parsed;
+  } catch (err) {
+    console.error('Błąd parsowania JSON etykiety:', rawText, err);
+    throw new Error('Nie udało się zinterpretować tabeli składników odżywczych ze zdjęcia.');
+  }
+}
+
