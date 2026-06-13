@@ -239,22 +239,19 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
             Html5QrcodeSupportedFormats.EAN_13,
             Html5QrcodeSupportedFormats.EAN_8
           ],
-          useBarCodeDetectorIfSupported: true,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-          },
           verbose: false
         });
 
         await html5QrCode.start(
+          { facingMode: "environment" },
           {
-            facingMode: "environment",
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          {
-            fps: 20,
-            qrbox: { width: 280, height: 160 }
+            fps: 15,
+            qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+              return {
+                width: Math.floor(viewfinderWidth * 0.8),
+                height: Math.floor(viewfinderHeight * 0.4)
+              };
+            }
           },
           async (decodedText) => {
             if (navigator.vibrate) {
@@ -672,8 +669,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
                 <div id="reader" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 border-2 border-dashed border-emerald-500/20 rounded-3xl pointer-events-none flex items-center justify-center">
                   <div 
-                    style={{ width: '280px', height: '160px' }} 
-                    className="border-2 border-emerald-500 rounded-xl relative shadow-[0_0_0_9999px_rgba(15,23,42,0.65)]"
+                    className="w-[80%] h-[40%] border-2 border-emerald-500 rounded-xl relative shadow-[0_0_0_9999px_rgba(15,23,42,0.65)]"
                   >
                     <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
                     <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
