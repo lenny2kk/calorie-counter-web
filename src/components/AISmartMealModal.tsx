@@ -4,6 +4,15 @@ import { fetchAIMealAnalysis, analyzeLabelImage } from '../services/dietitian';
 import { Sparkles, X, Camera, Send, Check, Loader2 } from 'lucide-react';
 import type { MealItem } from '../types';
 
+const sanitizeNumber = (val: any): number => {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  // Zamień polskie przecinki na kropki i usuń wszystkie znaki, które nie są cyframi lub kropką
+  const cleaned = String(val).replace(',', '.').replace(/[^0-9.]/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
 interface AISmartMealModalProps {
   isOpen: boolean;
   category: 'breakfast' | 'lunch' | 'dinner' | 'snacks';
@@ -132,10 +141,10 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
             aiResult: {
               success: true,
               productName: query.length > 40 ? query.substring(0, 40) + '...' : query,
-              calories: result.kcalPer100g,
-              protein: result.proteinPer100g,
-              carbs: result.carbsPer100g,
-              fat: result.fatPer100g,
+              calories: sanitizeNumber(result.kcalPer100g),
+              protein: sanitizeNumber(result.proteinPer100g),
+              carbs: sanitizeNumber(result.carbsPer100g),
+              fat: sanitizeNumber(result.fatPer100g),
               baseGrammage: 100
             }
           };
@@ -192,11 +201,11 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
               aiResult: {
                 success: true,
                 productName: String(result.productName || 'Nieznany produkt AI'),
-                calories: Number(result.calories ?? 0),
-                protein: Number(result.protein ?? 0),
-                carbs: Number(result.carbs ?? 0),
-                fat: Number(result.fat ?? 0),
-                baseGrammage: Number(result.portionGrams || result.baseGrammage || 100)
+                calories: sanitizeNumber(result.calories),
+                protein: sanitizeNumber(result.protein),
+                carbs: sanitizeNumber(result.carbs),
+                fat: sanitizeNumber(result.fat),
+                baseGrammage: sanitizeNumber(result.portionGrams || result.baseGrammage || 100)
               }
             };
           }
