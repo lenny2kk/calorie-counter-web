@@ -3,7 +3,7 @@ import { useCalorieTracker } from '../hooks/useCalorieTracker';
 import { basicProductsDatabase } from '../data/basicProducts';
 import { ChevronLeft, Search, Plus, Sparkles, User, Clock, Apple, ScanBarcode } from 'lucide-react';
 import type { MealItem } from '../types';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { fetchProductByBarcode } from '../services/foodApi';
 
 interface ProductSearchProps {
@@ -51,6 +51,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
   const [scanError, setScanError] = useState<string | null>(null);
   const [scannedBarcode, setScannedBarcode] = useState('');
   const [retryCount, setRetryCount] = useState(0);
+  const [scanStatus, setScanStatus] = useState('Skieruj aparat na czysty kod kreskowy...');
 
   // Filter lists based on search query
   const filteredCustom = searchText
@@ -164,6 +165,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
       // 1. Look locally in customProducts
       const matchCustom = customProducts.find(p => p.barcode === barcode);
       if (matchCustom) {
+        setIsScanning(false);
         setSelectedProduct({
           id: matchCustom.id,
           name: matchCustom.name,
@@ -179,6 +181,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
       // 2. Look locally in productsHistory
       const matchHistory = productsHistory.find(p => p.id === barcode);
       if (matchHistory) {
+        setIsScanning(false);
         setSelectedProduct({
           id: matchHistory.id,
           name: matchHistory.name,
@@ -193,6 +196,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
 
       // 3. Fallback to Open Food Facts API
       const product = await fetchProductByBarcode(barcode);
+      setIsScanning(false);
       if (product) {
         setSelectedProduct({
           id: product.barcode,
@@ -216,6 +220,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
         alert(`Nie znaleziono produktu o kodzie ${barcode} w bazie. Możesz dodać go ręcznie.`);
       }
     } catch (err) {
+      setIsScanning(false);
       alert("Wystąpił błąd podczas szukania produktu po kodzie kreskowym.");
     } finally {
       setIsLoading(false);
@@ -227,6 +232,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
       setScanError(null);
       return;
     }
+    setScanStatus('Skieruj aparat na czysty kod kreskowy...');
     let html5QrCode: Html5Qrcode | null = null;
     let isMounted = true;
     
@@ -235,17 +241,13 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
         if (!isMounted) return;
 
         html5QrCode = new Html5Qrcode("reader", {
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8
-          ],
           verbose: false
         });
 
         await html5QrCode.start(
           { facingMode: "environment" },
           {
-            fps: 15,
+            fps: 10,
             qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
               return {
                 width: Math.floor(viewfinderWidth * 0.8),
@@ -254,13 +256,13 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
             }
           },
           async (decodedText) => {
+            setScanStatus(`Wykryto kod ${decodedText}! Pobieranie danych...`);
             if (navigator.vibrate) {
               navigator.vibrate(100);
             }
             if (html5QrCode && html5QrCode.isScanning) {
               await html5QrCode.stop();
             }
-            setIsScanning(false);
             handleBarcodeFound(decodedText);
           },
           () => {
@@ -682,6 +684,9 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
           </div>
 
           <div className="w-full max-w-sm mx-auto">
+            {!scanError && (
+              <p className="text-center text-sm text-gray-400 mt-2 mb-4">Status: {scanStatus}</p>
+            )}
             <button
               onClick={() => setIsScanning(false)}
               className="w-full py-3.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold rounded-xl transition-all active:scale-[0.98] cursor-pointer"
