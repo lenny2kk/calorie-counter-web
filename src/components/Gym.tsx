@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useCalorieTracker } from '../hooks/useCalorieTracker';
+import { useCalorieTracker, toLocalYYYYMMDD, parseLocalDate } from '../hooks/useCalorieTracker';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { Dumbbell, Plus, Minus, Trash2, Calendar as CalendarIcon, TrendingUp } from 'lucide-react';
 
@@ -11,7 +11,7 @@ export const Gym: React.FC = () => {
   const [weight, setWeight] = useState('');
   const [sets, setSets] = useState(3);
   const [reps, setReps] = useState(10);
-  const [dateStr, setDateStr] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dateStr, setDateStr] = useState(() => toLocalYYYYMMDD(new Date()));
 
   // Chart states
   const [timeUnit, setTimeUnit] = useState<'weeks' | 'months'>('weeks');
@@ -41,8 +41,11 @@ export const Gym: React.FC = () => {
     const w = parseFloat(weight);
     if (isNaN(w) || w <= 0) return;
 
+    const [yr, mo, dy] = dateStr.split('-').map(Number);
+    const localNoonDate = new Date(yr, mo - 1, dy, 12, 0, 0);
+
     addWorkoutEntry({
-      date: new Date(dateStr).toISOString(),
+      date: localNoonDate.toISOString(),
       exerciseName: exerciseName.trim(),
       weight: w,
       sets,
@@ -74,7 +77,7 @@ export const Gym: React.FC = () => {
         const day = entryDate.getDay();
         const diff = entryDate.getDate() - day + (day === 0 ? -6 : 1);
         const monday = new Date(entryDate.setDate(diff));
-        periodKey = monday.toISOString().split('T')[0];
+        periodKey = toLocalYYYYMMDD(monday);
       } else {
         // Month start
         periodKey = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}-01`;
@@ -121,7 +124,7 @@ export const Gym: React.FC = () => {
 
   const formatXAxisDate = (dateStr: string) => {
     try {
-      const d = new Date(dateStr);
+      const d = parseLocalDate(dateStr);
       if (timeUnit === 'weeks') {
         return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
       } else {

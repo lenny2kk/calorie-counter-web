@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useCalorieTracker } from '../hooks/useCalorieTracker';
+import { useCalorieTracker, toLocalYYYYMMDD } from '../hooks/useCalorieTracker';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { ChevronLeft, ChevronRight, Scale, Info } from 'lucide-react';
 
@@ -39,11 +39,11 @@ export const Statistics: React.FC = () => {
     for (let i = 0; i < 7; i++) {
       const targetDate = new Date(monday);
       targetDate.setDate(monday.getDate() + i);
-      const dateStr = targetDate.toISOString().split('T')[0];
+      const dateStr = toLocalYYYYMMDD(targetDate);
 
       // Find calorie count in historical days
       const match = historicalDays.find((day) => {
-        const dStr = new Date(day.date).toISOString().split('T')[0];
+        const dStr = toLocalYYYYMMDD(new Date(day.date));
         return dStr === dateStr;
       });
 

@@ -57,6 +57,18 @@ interface CalorieTrackerContextType {
   logout: () => Promise<void>;
 }
 
+export const toLocalYYYYMMDD = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+export const parseLocalDate = (dateStr: string): Date => {
+  const [yr, mo, dy] = dateStr.split('-').map(Number);
+  return new Date(yr, mo - 1, dy);
+};
+
 const CalorieTrackerContext = createContext<CalorieTrackerContextType | undefined>(undefined);
 
 const DEFAULT_MEAL = (): MealEntry => ({ calories: 0, protein: 0, carbs: 0, fat: 0, items: [] });
@@ -68,7 +80,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   const [mealsLoading, setMealsLoading] = useState(true);
 
   // Date selection state (YYYY-MM-DD)
-  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(() => toLocalYYYYMMDD(new Date()));
 
   // Profile fields
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(false);
@@ -224,8 +236,15 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
     const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     
-    // Find if there is a log index corresponding to our selectedDate (starts with YYYY-MM-DD)
-    const logIdx = historicalDays.findIndex(day => day.date.startsWith(selectedDate));
+    // Find if there is a log index corresponding to our selectedDate
+    const logIdx = historicalDays.findIndex(day => {
+      try {
+        const dObj = new Date(day.date);
+        return toLocalYYYYMMDD(dObj) === selectedDate;
+      } catch (e) {
+        return false;
+      }
+    });
     
     let updatedHistory = [...historicalDays];
     if (logIdx >= 0) {
@@ -446,8 +465,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
     const demoHistory: HistoricalDay[] = [];
     const now = new Date();
     for (let i = 14; i >= 1; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
+      // Create date at noon local time to avoid timezone boundary issues
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i, 12, 0, 0);
       const randomCalories = Math.floor(Math.random() * 800) + 1600;
       demoHistory.push({
         id: crypto.randomUUID(),

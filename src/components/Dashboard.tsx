@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useCalorieTracker } from '../hooks/useCalorieTracker';
+import { useCalorieTracker, toLocalYYYYMMDD, parseLocalDate } from '../hooks/useCalorieTracker';
 import { fetchDietitianReport } from '../services/dietitian';
 import { Sparkles, ChevronRight, ChevronLeft, Activity, Calendar } from 'lucide-react';
 
@@ -28,20 +28,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = toLocalYYYYMMDD(new Date());
 
   // Day step handlers
   const handlePrevDay = () => {
-    const current = new Date(selectedDate);
+    const current = parseLocalDate(selectedDate);
     current.setDate(current.getDate() - 1);
-    setSelectedDate(current.toISOString().split('T')[0]);
+    setSelectedDate(toLocalYYYYMMDD(current));
   };
 
   const handleNextDay = () => {
     if (selectedDate === todayStr) return;
-    const current = new Date(selectedDate);
+    const current = parseLocalDate(selectedDate);
     current.setDate(current.getDate() + 1);
-    setSelectedDate(current.toISOString().split('T')[0]);
+    setSelectedDate(toLocalYYYYMMDD(current));
   };
 
   // SVG Progress Ring calculations
@@ -103,7 +103,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
 
   const getFormattedDate = (dateString: string) => {
     const options: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-    const dateObj = new Date(dateString);
+    const dateObj = parseLocalDate(dateString);
     const dateStr = dateObj.toLocaleDateString('pl-PL', options);
     return dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
   };
