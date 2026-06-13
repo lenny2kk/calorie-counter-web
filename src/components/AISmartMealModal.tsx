@@ -342,8 +342,8 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm z-50 animate-fade-in">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 relative shadow-2xl flex flex-col h-[85vh]">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 animate-fade-in">
+      <div className="fixed inset-y-0 right-0 w-full sm:w-[450px] z-50 flex flex-col bg-[#0f172a] shadow-2xl border-l border-slate-800/80 p-6 relative">
         
         {/* Close Button */}
         <button
@@ -363,7 +363,7 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
         </div>
 
         {/* Chat log window */}
-        <div className="flex-1 overflow-y-auto pr-1 space-y-4 mb-4 py-2 border-t border-b border-slate-950 flex flex-col">
+        <div className="flex-grow overflow-y-auto pr-1 space-y-4 mb-4 py-2 border-t border-b border-slate-950 flex flex-col">
           {messages.map((msg) => (
             <div
               key={msg.id}
@@ -446,10 +446,10 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
 
       {/* CAMERA SNAPSHOT OVERLAY MODAL */}
       {isCameraOpen && (
-        <div className="fixed inset-0 bg-slate-950 z-[60] flex flex-col justify-between py-6 px-5 relative animate-fade-in">
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col justify-between items-center py-6 px-5 animate-fade-in">
           {/* Flash visual overlay */}
           {showFlash && (
-            <div className="absolute inset-0 bg-white opacity-100 z-[70] transition-opacity duration-150 pointer-events-none" />
+            <div className="absolute inset-0 bg-white opacity-100 z-[110] transition-opacity duration-150 pointer-events-none" />
           )}
 
           {/* Close button */}
