@@ -37,3 +37,19 @@ body {
 .delay-100 { animation-delay: 100ms; }
 .delay-200 { animation-delay: 200ms; }
 .delay-300 { animation-delay: 300ms; }
+
+/* Barcode Scanner Overrides to remove visual conflicts */
+#reader__border {
+  display: none !important;
+}
+
+#reader__dashboard {
+  display: none !important;
+}
+
+#reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 24px !important;
+}

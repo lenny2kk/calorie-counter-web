@@ -233,12 +233,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
         html5QrCode = new Html5Qrcode("reader", {
           formatsToSupport: [
             Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.ITF
+            Html5QrcodeSupportedFormats.EAN_8
           ],
           verbose: false
         });
@@ -246,7 +241,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
           { facingMode: "environment" },
           {
             fps: 10,
-            qrbox: { width: 280, height: 160 }
+            qrbox: { width: 250, height: 150 }
           },
           async (decodedText) => {
             if (navigator.vibrate) {
@@ -637,7 +632,10 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
               <>
                 <div id="reader" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 border-2 border-dashed border-emerald-500/20 rounded-3xl pointer-events-none flex items-center justify-center">
-                  <div className="w-64 h-32 border-2 border-emerald-500 rounded-xl relative shadow-[0_0_0_9999px_rgba(15,23,42,0.65)]">
+                  <div 
+                    style={{ width: '250px', height: '150px' }} 
+                    className="border-2 border-emerald-500 rounded-xl relative shadow-[0_0_0_9999px_rgba(15,23,42,0.65)]"
+                  >
                     <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
                     <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
                     <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl" />
