@@ -4,7 +4,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 
 import { ChevronLeft, ChevronRight, Scale, Info } from 'lucide-react';
 
 export const Statistics: React.FC = () => {
-  const { historicalDays, weight, height } = useCalorieTracker();
+  const { historicalDays, weight, height, statsLoading } = useCalorieTracker();
   const [weekOffset, setWeekOffset] = useState(0);
 
   // BMI calculations
@@ -82,6 +82,15 @@ export const Statistics: React.FC = () => {
   const maxBmi = 35;
   const clampedBmi = Math.max(minBmi, Math.min(maxBmi, bmi));
   const pointerPercentage = ((clampedBmi - minBmi) / (maxBmi - minBmi)) * 100;
+
+  if (statsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[350px] space-y-4">
+        <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm font-semibold text-slate-400">Ładowanie statystyk...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-20 animate-fade-in">

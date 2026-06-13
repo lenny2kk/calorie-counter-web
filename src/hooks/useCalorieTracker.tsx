@@ -3,12 +3,13 @@ import type { MealEntry, MealItem, HistoricalDay, WorkoutEntry, HistoryProduct, 
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, collection } from 'firebase/firestore';
 
 interface CalorieTrackerContextType {
   user: User | null;
   authLoading: boolean;
   mealsLoading: boolean;
+  statsLoading: boolean;
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   onboardingCompleted: boolean;
@@ -78,6 +79,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [mealsLoading, setMealsLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   // Date selection state (YYYY-MM-DD)
   const [selectedDate, setSelectedDate] = useState<string>(() => toLocalYYYYMMDD(new Date()));
@@ -159,10 +161,12 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       setCustomProducts([]);
       setReminders([]);
       setMealsLoading(false);
+      setStatsLoading(false);
       return;
     }
 
     setMealsLoading(true);
+    setStatsLoading(true);
 
     // 1. Subscribe to User Profile
     const profileRef = doc(db!, 'users', user.uid, 'profile', 'data');
@@ -210,12 +214,11 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       setMealsLoading(false);
     });
 
-    // 3. Subscribe to Statistics dataset
+    // 3. Subscribe to Statistics dataset (excluding historicalDays)
     const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const unsubStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setHistoricalDays(data.historicalDays || []);
         setWorkoutEntries(data.workoutEntries || []);
         setProductsHistory(data.productsHistory || []);
         setCustomProducts(data.customProducts || []);
@@ -223,45 +226,44 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       }
     });
 
+    // 4. Subscribe to All Meals collection dynamically (for Statistics)
+    const mealsCollectionRef = collection(db!, 'users', user.uid, 'meals');
+    const unsubAllMeals = onSnapshot(mealsCollectionRef, (querySnap) => {
+      const days: HistoricalDay[] = [];
+      querySnap.forEach((docSnap) => {
+        const data = docSnap.data();
+        const breakfastCal = data.breakfast?.calories || 0;
+        const lunchCal = data.lunch?.calories || 0;
+        const dinnerCal = data.dinner?.calories || 0;
+        const snacksCal = data.snacks?.calories || 0;
+        const total = breakfastCal + lunchCal + dinnerCal + snacksCal;
+
+        const [yr, mo, dy] = docSnap.id.split('-').map(Number);
+        const dateObj = new Date(yr, mo - 1, dy, 12, 0, 0);
+        const isoDate = dateObj.toISOString();
+
+        days.push({
+          id: docSnap.id,
+          date: isoDate,
+          caloriesEaten: total
+        });
+      });
+      setHistoricalDays(days);
+      setStatsLoading(false);
+    }, (err) => {
+      console.error("Error loading all meals collection:", err);
+      setStatsLoading(false);
+    });
+
     return () => {
       unsubProfile();
       unsubMeals();
       unsubStats();
+      unsubAllMeals();
     };
   }, [user, selectedDate]);
 
-  // Synchronize dynamic day totals to history when logged meals update
-  useEffect(() => {
-    if (!user || !onboardingCompleted || !db || mealsLoading) return;
 
-    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
-    
-    // Find if there is a log index corresponding to our selectedDate
-    const logIdx = historicalDays.findIndex(day => {
-      try {
-        const dObj = new Date(day.date);
-        return toLocalYYYYMMDD(dObj) === selectedDate;
-      } catch (e) {
-        return false;
-      }
-    });
-    
-    let updatedHistory = [...historicalDays];
-    if (logIdx >= 0) {
-      if (updatedHistory[logIdx].caloriesEaten !== totalEaten) {
-        updatedHistory[logIdx] = { ...updatedHistory[logIdx], caloriesEaten: totalEaten };
-        updateDoc(statsRef, { historicalDays: updatedHistory }).catch(console.error);
-      }
-    } else {
-      // Reconstruct ISO string date matching selectedDate at noon
-      const [yr, mo, dy] = selectedDate.split('-').map(Number);
-      const dateObj = new Date(yr, mo - 1, dy, 12, 0, 0);
-      const isoDate = dateObj.toISOString();
-
-      updatedHistory.push({ id: crypto.randomUUID(), date: isoDate, caloriesEaten: totalEaten });
-      updateDoc(statsRef, { historicalDays: updatedHistory }).catch(console.error);
-    }
-  }, [totalEaten, selectedDate, user, onboardingCompleted, mealsLoading]);
 
   // Actions
   const saveOnboarding = async (w: number, h: number, a: number, g: 'Mężczyzna' | 'Kobieta', al: number, computedTdee: number) => {
@@ -461,18 +463,22 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
     if (!user || !db) return;
     const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
 
-    // Generate historical days (last 14 days)
-    const demoHistory: HistoricalDay[] = [];
+    // Generate historical meals (last 14 days)
     const now = new Date();
+    const batchPromises = [];
     for (let i = 14; i >= 1; i--) {
-      // Create date at noon local time to avoid timezone boundary issues
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i, 12, 0, 0);
-      const randomCalories = Math.floor(Math.random() * 800) + 1600;
-      demoHistory.push({
-        id: crypto.randomUUID(),
-        date: d.toISOString(),
-        caloriesEaten: randomCalories
-      });
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const dateStr = toLocalYYYYMMDD(d);
+      
+      const randomBase = Math.floor(Math.random() * 400) + 350; // 350 to 750
+      const mealDocRef = doc(db!, 'users', user.uid, 'meals', dateStr);
+      
+      batchPromises.push(setDoc(mealDocRef, {
+        breakfast: { calories: randomBase, protein: Math.round(randomBase * 0.05), carbs: Math.round(randomBase * 0.12), fat: Math.round(randomBase * 0.03), items: [] },
+        lunch: { calories: randomBase + 200, protein: Math.round((randomBase + 200) * 0.06), carbs: Math.round((randomBase + 200) * 0.1), fat: Math.round((randomBase + 200) * 0.04), items: [] },
+        dinner: { calories: randomBase - 100, protein: Math.round((randomBase - 100) * 0.05), carbs: Math.round((randomBase - 100) * 0.11), fat: Math.round((randomBase - 100) * 0.03), items: [] },
+        snacks: { calories: 150, protein: 5, carbs: 20, fat: 5, items: [] }
+      }));
     }
 
     // Generate workout entries
@@ -490,8 +496,9 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       { id: crypto.randomUUID(), name: "Kreatyna Monohydrat", kcalPer100g: 0, proteinPer100g: 0, carbsPer100g: 0, fatPer100g: 0 }
     ];
 
+    await Promise.all(batchPromises);
+
     await setDoc(statsRef, {
-      historicalDays: demoHistory,
       workoutEntries: demoWorkouts,
       customProducts: demoCustom
     }, { merge: true });
@@ -509,6 +516,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       user,
       authLoading,
       mealsLoading,
+      statsLoading,
       selectedDate,
       setSelectedDate,
       onboardingCompleted,
