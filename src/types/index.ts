@@ -72,6 +72,7 @@ export interface CustomProduct {
   proteinPer100g: number;
   carbsPer100g: number;
   fatPer100g: number;
+  barcode?: string;
 }
 
 export interface BaseProduct {

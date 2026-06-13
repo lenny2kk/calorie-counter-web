@@ -49,7 +49,7 @@ interface CalorieTrackerContextType {
   addWorkoutEntry: (entry: Omit<WorkoutEntry, 'id'>) => Promise<void>;
   deleteWorkoutEntry: (id: string) => Promise<void>;
   addProductToHistory: (id: string, name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number) => Promise<void>;
-  addCustomProduct: (name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number) => Promise<void>;
+  addCustomProduct: (name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number, barcode?: string) => Promise<void>;
   addReminder: (hour: number, minute: number) => Promise<void>;
   deleteReminder: (id: string) => Promise<void>;
   setApiKey: (key: string) => Promise<void>;
@@ -407,7 +407,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
     }, { merge: true });
   };
 
-  const addCustomProduct = async (name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number) => {
+  const addCustomProduct = async (name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number, barcode?: string) => {
     if (!user || !db) return;
     const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const newProduct: CustomProduct = {
@@ -416,7 +416,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       kcalPer100g,
       proteinPer100g,
       carbsPer100g,
-      fatPer100g
+      fatPer100g,
+      barcode
     };
 
     await setDoc(statsRef, {

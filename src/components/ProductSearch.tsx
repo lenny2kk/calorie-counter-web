@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCalorieTracker } from '../hooks/useCalorieTracker';
 import { basicProductsDatabase } from '../data/basicProducts';
-import { ChevronLeft, Search, Plus, Sparkles, User, Clock, Apple } from 'lucide-react';
+import { ChevronLeft, Search, Plus, Sparkles, User, Clock, Apple, ScanBarcode } from 'lucide-react';
 import type { MealItem } from '../types';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { fetchProductByBarcode } from '../services/foodApi';
 
 interface ProductSearchProps {
   category: 'breakfast' | 'lunch' | 'dinner' | 'snacks';
@@ -43,6 +45,11 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
   const [customCarbs, setCustomCarbs] = useState('');
   const [customFat, setCustomFat] = useState('');
   const [customWeight, setCustomWeight] = useState('100');
+
+  // Scanner states
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scannedBarcode, setScannedBarcode] = useState('');
 
   // Filter lists based on search query
   const filteredCustom = searchText
@@ -133,7 +140,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
     const cPer100 = (totalCarbs / totalWeight) * 100;
     const fPer100 = (totalFat / totalWeight) * 100;
 
-    addCustomProduct(customName, kcalPer100, pPer100, cPer100, fPer100);
+    addCustomProduct(customName, kcalPer100, pPer100, cPer100, fPer100, scannedBarcode || undefined);
 
     // Reset creation fields
     setCustomName('');
@@ -142,12 +149,134 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
     setCustomCarbs('');
     setCustomFat('');
     setCustomWeight('100');
+    setScannedBarcode('');
     setIsCreatingCustom(false);
 
     // Prompt search state to find it
     setSearchText(customName);
     setHasSearched(true);
   };
+
+  const handleBarcodeFound = async (barcode: string) => {
+    setIsLoading(true);
+    try {
+      // 1. Look locally in customProducts
+      const matchCustom = customProducts.find(p => p.barcode === barcode);
+      if (matchCustom) {
+        setSelectedProduct({
+          id: matchCustom.id,
+          name: matchCustom.name,
+          kcalPer100g: matchCustom.kcalPer100g,
+          proteinPer100g: matchCustom.proteinPer100g,
+          carbsPer100g: matchCustom.carbsPer100g,
+          fatPer100g: matchCustom.fatPer100g,
+          source: 'custom'
+        });
+        return;
+      }
+
+      // 2. Look locally in productsHistory
+      const matchHistory = productsHistory.find(p => p.id === barcode);
+      if (matchHistory) {
+        setSelectedProduct({
+          id: matchHistory.id,
+          name: matchHistory.name,
+          kcalPer100g: matchHistory.kcalPer100g,
+          proteinPer100g: matchHistory.proteinPer100g,
+          carbsPer100g: matchHistory.carbsPer100g,
+          fatPer100g: matchHistory.fatPer100g,
+          source: 'history'
+        });
+        return;
+      }
+
+      // 3. Fallback to Open Food Facts API
+      const product = await fetchProductByBarcode(barcode);
+      if (product) {
+        setSelectedProduct({
+          id: product.barcode,
+          name: product.name,
+          kcalPer100g: product.kcalPer100g,
+          proteinPer100g: product.proteinPer100g,
+          carbsPer100g: product.carbsPer100g,
+          fatPer100g: product.fatPer100g,
+          source: 'api'
+        });
+      } else {
+        // Product NOT found in Open Food Facts! Show manual creation form
+        setScannedBarcode(barcode);
+        setCustomName(`Produkt ${barcode}`);
+        setCustomKcal('');
+        setCustomProtein('');
+        setCustomCarbs('');
+        setCustomFat('');
+        setCustomWeight('100');
+        setIsCreatingCustom(true);
+        alert(`Nie znaleziono produktu o kodzie ${barcode} w bazie. Możesz dodać go ręcznie.`);
+      }
+    } catch (err) {
+      alert("Wystąpił błąd podczas szukania produktu po kodzie kreskowym.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isScanning) {
+      setScanError(null);
+      return;
+    }
+    let html5QrCode: Html5Qrcode | null = null;
+    
+    const startScanner = async () => {
+      try {
+        html5QrCode = new Html5Qrcode("reader", {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.ITF
+          ],
+          verbose: false
+        });
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 280, height: 160 }
+          },
+          async (decodedText) => {
+            if (navigator.vibrate) {
+              navigator.vibrate(100);
+            }
+            if (html5QrCode && html5QrCode.isScanning) {
+              await html5QrCode.stop();
+            }
+            setIsScanning(false);
+            handleBarcodeFound(decodedText);
+          },
+          () => {
+            // Quiet failure callback
+          }
+        );
+      } catch (err: any) {
+        console.error("Failed to start scanner:", err);
+        setScanError("Nie można uruchomić aparatu. Upewnij się, że zezwoliłeś na dostęp do kamery.");
+      }
+    };
+
+    const timer = setTimeout(startScanner, 150);
+
+    return () => {
+      clearTimeout(timer);
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(console.error);
+      }
+    };
+  }, [isScanning]);
 
   return (
     <div className="space-y-6 pb-20 animate-fade-in">
@@ -185,6 +314,13 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
           placeholder="Wyszukaj produkt (np. jajko, kurczak)..."
           className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
         />
+        <button
+          onClick={() => setIsScanning(true)}
+          className="p-3 bg-slate-900 border border-slate-800 text-emerald-400 rounded-xl hover:bg-slate-800 active:scale-[0.95] transition-all cursor-pointer flex items-center justify-center"
+          title="Skanuj kod kreskowy"
+        >
+          <ScanBarcode className="w-5 h-5" />
+        </button>
         <button
           onClick={searchOFF}
           disabled={!searchText || isLoading}
@@ -461,7 +597,10 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
 
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={() => setIsCreatingCustom(false)}
+                onClick={() => {
+                  setIsCreatingCustom(false);
+                  setScannedBarcode('');
+                }}
                 className="py-3 bg-slate-900 border border-slate-800 text-slate-400 rounded-xl hover:bg-slate-800 text-sm font-semibold transition-all active:scale-[0.98] cursor-pointer"
               >
                 Anuluj
@@ -473,6 +612,49 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
                 Zapisz
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* SCAN BARCODE MODAL */}
+      {isScanning && (
+        <div className="fixed inset-0 flex flex-col bg-slate-950/95 z-50 animate-fade-in justify-between py-8 px-5">
+          <div className="text-center space-y-2">
+            <h3 className="text-lg font-black text-slate-100 uppercase tracking-wide">Skanuj kod kreskowy</h3>
+            <p className="text-slate-400 text-xs max-w-xs mx-auto leading-relaxed">
+              Zezwól na dostęp do aparatu i umieść kod kreskowy wewnątrz ramki.
+            </p>
+          </div>
+
+          <div className="relative w-full max-w-sm aspect-square mx-auto rounded-3xl overflow-hidden border border-slate-800/85 bg-slate-950 flex items-center justify-center">
+            {scanError ? (
+              <div className="text-center p-6 space-y-3.5 max-w-xs">
+                <p className="text-red-400 text-sm font-semibold leading-relaxed">{scanError}</p>
+                <p className="text-slate-500 text-xxs leading-relaxed">
+                  Spróbuj ręcznie wpisać kod w pasek wyszukiwania lub kliknij przycisk "+" u góry, aby dodać produkt.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div id="reader" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 border-2 border-dashed border-emerald-500/20 rounded-3xl pointer-events-none flex items-center justify-center">
+                  <div className="w-64 h-32 border-2 border-emerald-500 rounded-xl relative shadow-[0_0_0_9999px_rgba(15,23,42,0.65)]">
+                    <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
+                    <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
+                    <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl" />
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br" />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="w-full max-w-sm mx-auto">
+            <button
+              onClick={() => setIsScanning(false)}
+              className="w-full py-3.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+            >
+              Anuluj
+            </button>
           </div>
         </div>
       )}
