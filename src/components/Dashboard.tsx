@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useCalorieTracker } from '../hooks/useCalorieTracker';
 import { fetchDietitianReport } from '../services/dietitian';
-import { Sparkles, ChevronRight, Activity, Calendar } from 'lucide-react';
+import { Sparkles, ChevronRight, ChevronLeft, Activity, Calendar } from 'lucide-react';
 
 interface DashboardProps {
   onNavigateToMeal: (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks') => void;
@@ -19,11 +19,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
     totalFat,
     latestReport,
     setLatestReport,
-    apiKey
+    apiKey,
+    selectedDate,
+    setSelectedDate,
+    mealsLoading
   } = useCalorieTracker();
 
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // Day step handlers
+  const handlePrevDay = () => {
+    const current = new Date(selectedDate);
+    current.setDate(current.getDate() - 1);
+    setSelectedDate(current.toISOString().split('T')[0]);
+  };
+
+  const handleNextDay = () => {
+    if (selectedDate === todayStr) return;
+    const current = new Date(selectedDate);
+    current.setDate(current.getDate() + 1);
+    setSelectedDate(current.toISOString().split('T')[0]);
+  };
 
   // SVG Progress Ring calculations
   const radius = 70;
@@ -82,10 +101,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
     }
   };
 
-  const getFormattedDate = () => {
+  const getFormattedDate = (dateString: string) => {
     const options: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-    const dateStr = new Date().toLocaleDateString('pl-PL', options);
-    // Capitalize first letter
+    const dateObj = new Date(dateString);
+    const dateStr = dateObj.toLocaleDateString('pl-PL', options);
     return dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
   };
 
@@ -98,61 +117,98 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
 
   return (
     <div className="space-y-6 pb-20 animate-fade-in">
-      {/* Date Header */}
-      <div className="flex items-center space-x-2 text-slate-400">
-        <Calendar className="w-4 h-4 text-emerald-400" />
-        <span className="text-sm font-medium">{getFormattedDate()}</span>
+      {/* Dynamic Date Selector Stepper */}
+      <div className="flex items-center justify-between bg-slate-900/40 border border-slate-900/80 p-2 rounded-2xl">
+        <button
+          onClick={handlePrevDay}
+          className="p-2 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl transition-all cursor-pointer active:scale-95"
+          title="Poprzedni dzień"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+
+        <div className="flex items-center space-x-2 relative hover:bg-slate-805/50 px-3 py-1.5 rounded-xl transition-all cursor-pointer">
+          <Calendar className="w-4 h-4 text-emerald-400" />
+          <span className="text-xs font-bold text-slate-300 tracking-wide">
+            {selectedDate === todayStr ? 'Dzisiaj' : getFormattedDate(selectedDate)}
+          </span>
+          <input
+            type="date"
+            max={todayStr}
+            value={selectedDate}
+            onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+          />
+        </div>
+
+        <button
+          onClick={handleNextDay}
+          disabled={selectedDate === todayStr}
+          className="p-2 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl transition-all cursor-pointer active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed"
+          title="Następny dzień"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Calories Radial Summary Card */}
-      <div className="glass-card rounded-3xl p-6 flex flex-col items-center relative overflow-hidden">
+      <div className="glass-card rounded-3xl p-6 flex flex-col items-center relative overflow-hidden min-h-[260px] justify-center">
         <div className="absolute top-0 right-0 p-4 opacity-5">
           <Activity className="w-24 h-24 text-slate-100" />
         </div>
 
-        <div className="relative w-44 h-44 flex items-center justify-center">
-          <svg className="w-full h-full transform -rotate-90">
-            {/* Background Ring */}
-            <circle
-              cx="88"
-              cy="88"
-              r={radius}
-              className="stroke-slate-800"
-              strokeWidth="12"
-              fill="transparent"
-            />
-            {/* Foreground Ring */}
-            <circle
-              cx="88"
-              cy="88"
-              r={radius}
-              className={`transition-all duration-500 ease-out ${ringColor}`}
-              strokeWidth="12"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-              fill="transparent"
-            />
-          </svg>
-
-          {/* Center Text */}
-          <div className="absolute flex flex-col items-center text-center">
-            <span className={`text-4xl font-extrabold tracking-tight ${centerTextColor}`}>
-              {isStrictLimitMode
-                ? (totalEaten > tdee ? totalEaten - tdee : tdee - totalEaten)
-                : (totalEaten >= tdee ? totalEaten - tdee : tdee - totalEaten)
-              }
-            </span>
-            <span className="text-slate-400 text-xs font-semibold mt-0.5">{statusText}</span>
+        {mealsLoading ? (
+          <div className="w-44 h-44 flex flex-col items-center justify-center space-y-3">
+            <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Ładowanie posiłków...</span>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="relative w-44 h-44 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90">
+                {/* Background Ring */}
+                <circle
+                  cx="88"
+                  cy="88"
+                  r={radius}
+                  className="stroke-slate-800"
+                  strokeWidth="12"
+                  fill="transparent"
+                />
+                {/* Foreground Ring */}
+                <circle
+                  cx="88"
+                  cy="88"
+                  r={radius}
+                  className={`transition-all duration-500 ease-out ${ringColor}`}
+                  strokeWidth="12"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                  fill="transparent"
+                />
+              </svg>
 
-        {/* Info label about total eaten / target */}
-        <div className="mt-4 flex space-x-4 text-sm font-semibold text-slate-400">
-          <div>Zjedzone: <span className="text-slate-200">{totalEaten} kcal</span></div>
-          <div className="text-slate-700">|</div>
-          <div>Cel TDEE: <span className="text-slate-200">{tdee} kcal</span></div>
-        </div>
+              {/* Center Text */}
+              <div className="absolute flex flex-col items-center text-center">
+                <span className={`text-4xl font-extrabold tracking-tight ${centerTextColor}`}>
+                  {isStrictLimitMode
+                    ? (totalEaten > tdee ? totalEaten - tdee : tdee - totalEaten)
+                    : (totalEaten >= tdee ? totalEaten - tdee : tdee - totalEaten)
+                  }
+                </span>
+                <span className="text-slate-400 text-xs font-semibold mt-0.5">{statusText}</span>
+              </div>
+            </div>
+
+            {/* Info label about total eaten / target */}
+            <div className="mt-4 flex space-x-4 text-sm font-semibold text-slate-400">
+              <div>Zjedzone: <span className="text-slate-200">{totalEaten} kcal</span></div>
+              <div className="text-slate-700">|</div>
+              <div>Cel TDEE: <span className="text-slate-200">{tdee} kcal</span></div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Macro Indicators */}

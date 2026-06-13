@@ -8,6 +8,9 @@ import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 interface CalorieTrackerContextType {
   user: User | null;
   authLoading: boolean;
+  mealsLoading: boolean;
+  selectedDate: string;
+  setSelectedDate: (date: string) => void;
   onboardingCompleted: boolean;
   tdee: number;
   isStrictLimitMode: boolean;
@@ -62,6 +65,10 @@ const DEFAULT_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
 export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [mealsLoading, setMealsLoading] = useState(true);
+
+  // Date selection state (YYYY-MM-DD)
+  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   // Profile fields
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(false);
@@ -74,7 +81,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   const [activityLevel, setActivityLevel] = useState<number>(1.2);
   const [apiKey, setApiKeyState] = useState<string>(DEFAULT_API_KEY);
 
-  // Meals (Loaded per current date)
+  // Meals (Loaded per selected date)
   const [meals, setMeals] = useState<{
     breakfast: MealEntry;
     lunch: MealEntry;
@@ -94,9 +101,6 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   const [productsHistory, setProductsHistory] = useState<HistoryProduct[]>([]);
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [reminders, setReminders] = useState<ReminderTime[]>([]);
-
-  // Get current date string YYYY-MM-DD
-  const todayStr = new Date().toISOString().split('T')[0];
 
   // Derived Totals
   const totalEaten = meals.breakfast.calories + meals.lunch.calories + meals.dinner.calories + meals.snacks.calories;
@@ -142,8 +146,11 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       setProductsHistory([]);
       setCustomProducts([]);
       setReminders([]);
+      setMealsLoading(false);
       return;
     }
+
+    setMealsLoading(true);
 
     // 1. Subscribe to User Profile
     const profileRef = doc(db!, 'users', user.uid, 'profile', 'data');
@@ -164,8 +171,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       }
     });
 
-    // 2. Subscribe to Today's Meals
-    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
+    // 2. Subscribe to Selected Date's Meals
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', selectedDate);
     const unsubMeals = onSnapshot(mealsRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -185,6 +192,10 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
         });
         setLatestReportState(null);
       }
+      setMealsLoading(false);
+    }, (err) => {
+      console.error("Error loading meals document:", err);
+      setMealsLoading(false);
     });
 
     // 3. Subscribe to Statistics dataset
@@ -205,27 +216,33 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       unsubMeals();
       unsubStats();
     };
-  }, [user, todayStr]);
+  }, [user, selectedDate]);
 
   // Synchronize dynamic day totals to history when logged meals update
   useEffect(() => {
-    if (!user || !onboardingCompleted || !db) return;
+    if (!user || !onboardingCompleted || !db || mealsLoading) return;
 
-    // Check if we need to archive today's sum to history
     const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
-    const todayLogIdx = historicalDays.findIndex(day => day.date.startsWith(todayStr));
+    
+    // Find if there is a log index corresponding to our selectedDate (starts with YYYY-MM-DD)
+    const logIdx = historicalDays.findIndex(day => day.date.startsWith(selectedDate));
     
     let updatedHistory = [...historicalDays];
-    if (todayLogIdx >= 0) {
-      if (updatedHistory[todayLogIdx].caloriesEaten !== totalEaten) {
-        updatedHistory[todayLogIdx] = { ...updatedHistory[todayLogIdx], caloriesEaten: totalEaten };
+    if (logIdx >= 0) {
+      if (updatedHistory[logIdx].caloriesEaten !== totalEaten) {
+        updatedHistory[logIdx] = { ...updatedHistory[logIdx], caloriesEaten: totalEaten };
         updateDoc(statsRef, { historicalDays: updatedHistory }).catch(console.error);
       }
     } else {
-      updatedHistory.push({ id: crypto.randomUUID(), date: new Date().toISOString(), caloriesEaten: totalEaten });
+      // Reconstruct ISO string date matching selectedDate at noon
+      const [yr, mo, dy] = selectedDate.split('-').map(Number);
+      const dateObj = new Date(yr, mo - 1, dy, 12, 0, 0);
+      const isoDate = dateObj.toISOString();
+
+      updatedHistory.push({ id: crypto.randomUUID(), date: isoDate, caloriesEaten: totalEaten });
       updateDoc(statsRef, { historicalDays: updatedHistory }).catch(console.error);
     }
-  }, [totalEaten, user, onboardingCompleted]);
+  }, [totalEaten, selectedDate, user, onboardingCompleted, mealsLoading]);
 
   // Actions
   const saveOnboarding = async (w: number, h: number, a: number, g: 'Mężczyzna' | 'Kobieta', al: number, computedTdee: number) => {
@@ -246,7 +263,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
   const updateMealItem = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', item: MealItem) => {
     if (!user || !db) return;
-    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', selectedDate);
     const currentEntry = meals[category];
     const updatedItems = [...currentEntry.items, item];
 
@@ -265,7 +282,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
   const deleteMealItem = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', itemId: string) => {
     if (!user || !db) return;
-    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', selectedDate);
     const currentEntry = meals[category];
     const targetItem = currentEntry.items.find(it => it.id === itemId);
     if (!targetItem) return;
@@ -286,7 +303,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
   const updateMealManual = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', field: 'calories' | 'protein' | 'carbs' | 'fat', value: number) => {
     if (!user || !db) return;
-    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', selectedDate);
     const currentEntry = meals[category];
     const updatedEntry = {
       ...currentEntry,
@@ -300,7 +317,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
   const clearMeal = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks') => {
     if (!user || !db) return;
-    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', selectedDate);
     await setDoc(mealsRef, {
       [category]: DEFAULT_MEAL()
     }, { merge: true });
@@ -417,7 +434,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
   const setLatestReport = async (report: DietitianReport | null) => {
     if (!user || !db) return;
-    const mealsRef = doc(db!, 'users', user.uid, 'meals', todayStr);
+    const mealsRef = doc(db!, 'users', user.uid, 'meals', selectedDate);
     await setDoc(mealsRef, { latestReport: report }, { merge: true });
   };
 
@@ -472,6 +489,9 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
     <CalorieTrackerContext.Provider value={{
       user,
       authLoading,
+      mealsLoading,
+      selectedDate,
+      setSelectedDate,
       onboardingCompleted,
       tdee,
       isStrictLimitMode,
