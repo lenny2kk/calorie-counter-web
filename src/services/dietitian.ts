@@ -191,11 +191,14 @@ Posiłek do analizy na 100g: ${inputText}`;
 }
 
 export interface AIVisionResult {
+  success?: boolean;
+  productName?: string;
   portionGrams?: string | number;
   calories?: string | number;
   protein?: string | number;
   carbs?: string | number;
   fat?: string | number;
+  baseGrammage?: string | number;
 }
 
 export async function analyzeLabelImage(params: {

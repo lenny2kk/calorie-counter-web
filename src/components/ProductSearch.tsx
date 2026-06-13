@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCalorieTracker } from '../hooks/useCalorieTracker';
 import { basicProductsDatabase } from '../data/basicProducts';
 import { ChevronLeft, Search, Plus, Sparkles, User, Clock, Apple, ScanBarcode } from 'lucide-react';
 import type { MealItem } from '../types';
 import { Html5Qrcode } from 'html5-qrcode';
 import { fetchProductByBarcode } from '../services/foodApi';
-import { analyzeLabelImage } from '../services/dietitian';
 
 interface ProductSearchProps {
   category: 'breakfast' | 'lunch' | 'dinner' | 'snacks';
@@ -18,8 +17,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
     productsHistory,
     addProductToHistory,
     customProducts,
-    addCustomProduct,
-    apiKey
+    addCustomProduct
   } = useCalorieTracker();
 
   const [searchText, setSearchText] = useState('');
@@ -54,22 +52,6 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
   const [scannedBarcode, setScannedBarcode] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [scanStatus, setScanStatus] = useState('Skieruj aparat na czysty kod kreskowy...');
-  const [scannerMode, setScannerMode] = useState<'BARCODE' | 'AI_VISION' | 'LOADING'>('BARCODE');
-
-  // Verification states
-  const [isVerifyingAIResult, setIsVerifyingAIResult] = useState(false);
-  const [aiName, setAiName] = useState('Produkt z etykiety');
-  const [aiKcal, setAiKcal] = useState('0');
-  const [aiProtein, setAiProtein] = useState('0');
-  const [aiCarbs, setAiCarbs] = useState('0');
-  const [aiFat, setAiFat] = useState('0');
-  const [aiPortionGrams, setAiPortionGrams] = useState('100');
-  const [aiEatenGrams, setAiEatenGrams] = useState('100');
-
-  const modeRef = useRef(scannerMode);
-  useEffect(() => {
-    modeRef.current = scannerMode;
-  }, [scannerMode]);
 
   // Filter lists based on search query
   const filteredCustom = searchText
@@ -177,16 +159,12 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
     setHasSearched(true);
   };
 
-  const handleBarcodeFound = async (barcode: string, html5QrCode: Html5Qrcode | null) => {
+  const handleBarcodeFound = async (barcode: string) => {
     setIsLoading(true);
     try {
       // 1. Look locally in customProducts
       const matchCustom = customProducts.find(p => p.barcode === barcode);
       if (matchCustom) {
-        if (html5QrCode && html5QrCode.isScanning) {
-          await html5QrCode.stop();
-        }
-        setIsScanning(false);
         setSelectedProduct({
           id: matchCustom.id,
           name: matchCustom.name,
@@ -202,10 +180,6 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
       // 2. Look locally in productsHistory
       const matchHistory = productsHistory.find(p => p.id === barcode);
       if (matchHistory) {
-        if (html5QrCode && html5QrCode.isScanning) {
-          await html5QrCode.stop();
-        }
-        setIsScanning(false);
         setSelectedProduct({
           id: matchHistory.id,
           name: matchHistory.name,
@@ -222,12 +196,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
       const product = await fetchProductByBarcode(barcode, (status) => {
         setScanStatus(status);
       });
-      
       if (product) {
-        if (html5QrCode && html5QrCode.isScanning) {
-          await html5QrCode.stop();
-        }
-        setIsScanning(false);
         setSelectedProduct({
           id: product.barcode,
           name: product.name,
@@ -238,69 +207,21 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
           source: 'api'
         });
       } else {
-        // Product NOT found! Transition to AI vision
+        // Product NOT found in Open Food Facts! Show manual creation form
         setScannedBarcode(barcode);
-        setScannerMode('AI_VISION');
+        setCustomName(`Produkt ${barcode}`);
+        setCustomKcal('');
+        setCustomProtein('');
+        setCustomCarbs('');
+        setCustomFat('');
+        setCustomWeight('100');
+        setIsCreatingCustom(true);
+        alert(`Nie znaleziono produktu o kodzie ${barcode} w bazie. Możesz dodać go ręcznie.`);
       }
     } catch (err) {
-      console.error("Barcode search error, switching to AI Vision:", err);
-      setScannedBarcode(barcode);
-      setScannerMode('AI_VISION');
+      alert("Wystąpił błąd podczas szukania produktu po kodzie kreskowym.");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleCaptureAIVision = async () => {
-    if (!apiKey) {
-      alert("Brak klucza API Gemini! Skonfiguruj go w Ustawieniach.");
-      return;
-    }
-
-    const video = document.querySelector('#reader video') as HTMLVideoElement;
-    if (!video) {
-      alert("Nie można odczytać strumienia wideo z aparatu.");
-      return;
-    }
-
-    setScannerMode('LOADING');
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || video.clientWidth;
-      canvas.height = video.videoHeight || video.clientHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error("Could not create canvas 2d context");
-
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      const base64 = dataUrl.split(',')[1];
-
-      const result = await analyzeLabelImage({ apiKey, imageBase64: base64 });
-
-      const rawPortion = result.portionGrams !== undefined ? String(result.portionGrams) : '100';
-      const rawCalories = result.calories !== undefined ? String(result.calories) : '0';
-      const rawProtein = result.protein !== undefined ? String(result.protein) : '0';
-      const rawCarbs = result.carbs !== undefined ? String(result.carbs) : '0';
-      const rawFat = result.fat !== undefined ? String(result.fat) : '0';
-
-      const cleanNum = (val: string) => {
-        return val.replace(/[^0-9.]/g, '') || '0';
-      };
-
-      setAiName(scannedBarcode ? `Produkt ${scannedBarcode}` : 'Produkt z etykiety');
-      setAiPortionGrams(cleanNum(rawPortion) || '100');
-      setAiKcal(cleanNum(rawCalories) || '0');
-      setAiProtein(cleanNum(rawProtein) || '0');
-      setAiCarbs(cleanNum(rawCarbs) || '0');
-      setAiFat(cleanNum(rawFat) || '0');
-      setAiEatenGrams('100');
-
-      setIsScanning(false);
-      setIsVerifyingAIResult(true);
-    } catch (err: any) {
-      console.error(err);
-      alert(`Wystąpił błąd podczas analizy obrazu przez AI: ${err.message || err}`);
-      setScannerMode('AI_VISION');
     }
   };
 
@@ -333,12 +254,15 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
             }
           },
           async (decodedText) => {
-            if (modeRef.current !== 'BARCODE') return;
             setScanStatus(`Wykryto kod ${decodedText}! Pobieranie danych...`);
             if (navigator.vibrate) {
               navigator.vibrate(100);
             }
-            handleBarcodeFound(decodedText, html5QrCode);
+            if (html5QrCode && html5QrCode.isScanning) {
+              await html5QrCode.stop();
+            }
+            setIsScanning(false);
+            handleBarcodeFound(decodedText);
           },
           () => {
             // Quiet failure callback
@@ -414,10 +338,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
           className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
         />
         <button
-          onClick={() => {
-            setScannerMode('BARCODE');
-            setIsScanning(true);
-          }}
+          onClick={() => setIsScanning(true)}
           className="p-3 bg-slate-900 border border-slate-800 text-emerald-400 rounded-xl hover:bg-slate-800 active:scale-[0.95] transition-all cursor-pointer flex items-center justify-center"
           title="Skanuj kod kreskowy"
         >
@@ -721,13 +642,9 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
       {isScanning && (
         <div className="fixed inset-0 flex flex-col bg-slate-950/95 z-50 animate-fade-in justify-between py-8 px-5">
           <div className="text-center space-y-2">
-            <h3 className="text-lg font-black text-slate-100 uppercase tracking-wide">
-              {scannerMode === 'BARCODE' ? 'Skanuj kod kreskowy' : 'Analiza etykiety AI'}
-            </h3>
+            <h3 className="text-lg font-black text-slate-100 uppercase tracking-wide">Skanuj kod kreskowy</h3>
             <p className="text-slate-400 text-xs max-w-xs mx-auto leading-relaxed">
-              {scannerMode === 'BARCODE' && 'Zezwól na dostęp do aparatu i umieść kod kreskowy wewnątrz ramki.'}
-              {scannerMode === 'AI_VISION' && 'Brak produktu w bazie. Skieruj aparat na tabelę wartości odżywczych i kliknij przycisk poniżej.'}
-              {scannerMode === 'LOADING' && 'AI analizuje zdjęcie... Proszę czekać.'}
+              Zezwól na dostęp do aparatu i umieść kod kreskowy wewnątrz ramki.
             </p>
           </div>
 
@@ -752,203 +669,29 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
               <>
                 <div id="reader" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 border-2 border-dashed border-emerald-500/20 rounded-3xl pointer-events-none flex items-center justify-center">
-                  {scannerMode === 'BARCODE' ? (
-                    <div 
-                      className="w-[80%] h-[40%] border-2 border-emerald-500 rounded-xl relative shadow-[0_0_0_9999px_rgba(15,23,42,0.65)]"
-                    >
-                      <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
-                      <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
-                      <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl" />
-                      <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br" />
-                    </div>
-                  ) : scannerMode === 'AI_VISION' ? (
-                    <div 
-                      className="w-[85%] h-[85%] border-2 border-amber-500 rounded-xl relative shadow-[0_0_0_9999px_rgba(15,23,42,0.65)]"
-                    >
-                      <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-amber-400 rounded-tl" />
-                      <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-amber-400 rounded-tr" />
-                      <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-amber-400 rounded-bl" />
-                      <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 border-amber-400 rounded-br" />
-                    </div>
-                  ) : null}
-                </div>
-
-                {scannerMode === 'LOADING' && (
-                  <div className="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center p-6 space-y-4">
-                    <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-amber-400 font-bold text-sm text-center animate-pulse">
-                      Gemini analizuje tabelę wartości...
-                    </p>
+                  <div 
+                    className="w-[80%] h-[40%] border-2 border-emerald-500 rounded-xl relative shadow-[0_0_0_9999px_rgba(15,23,42,0.65)]"
+                  >
+                    <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl" />
+                    <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr" />
+                    <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl" />
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br" />
                   </div>
-                )}
+                </div>
               </>
             )}
           </div>
 
-          <div className="w-full max-w-sm mx-auto space-y-4">
-            {!scanError && scannerMode === 'BARCODE' && (
+          <div className="w-full max-w-sm mx-auto">
+            {!scanError && (
               <p className="text-center text-sm text-gray-400 mt-2 mb-4">Status: {scanStatus}</p>
             )}
-
-            {!scanError && scannerMode === 'AI_VISION' && (
-              <button
-                onClick={handleCaptureAIVision}
-                className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition-all active:scale-[0.98] cursor-pointer shadow-lg shadow-amber-500/20 text-center uppercase tracking-wide flex items-center justify-center space-x-2"
-              >
-                <span>Analizuj etykietę przez AI</span>
-              </button>
-            )}
-
             <button
               onClick={() => setIsScanning(false)}
-              disabled={scannerMode === 'LOADING'}
-              className="w-full py-3.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold rounded-xl transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
+              className="w-full py-3.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold rounded-xl transition-all active:scale-[0.98] cursor-pointer"
             >
               Anuluj
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* AI VISION VERIFICATION MODAL */}
-      {isVerifyingAIResult && (
-        <div className="fixed inset-0 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm z-50 animate-fade-in">
-          <div className="w-full max-w-sm glass-card rounded-2xl p-6 relative border border-slate-800 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-bold text-slate-100 mb-1 flex items-center space-x-2 text-amber-400">
-              <Sparkles className="w-5 h-5 text-amber-500" />
-              <span>Weryfikacja danych z etykiety AI</span>
-            </h3>
-            <p className="text-slate-500 text-xxs mb-4">AI uzupełniło wartości z tabeli. Sprawdź je i podaj zjedzoną ilość.</p>
-            
-            <div className="space-y-3.5 mb-5">
-              <div>
-                <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Nazwa produktu</label>
-                <input
-                  type="text"
-                  value={aiName}
-                  onChange={(e) => setAiName(e.target.value)}
-                  placeholder="np. Serek Wiejski"
-                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-700 focus:outline-none text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Baza referencyjna (g)</label>
-                  <input
-                    type="number"
-                    value={aiPortionGrams}
-                    onChange={(e) => setAiPortionGrams(e.target.value)}
-                    placeholder="np. 100"
-                    className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-700 focus:outline-none text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Kalorie (kcal)</label>
-                  <input
-                    type="number"
-                    value={aiKcal}
-                    onChange={(e) => setAiKcal(e.target.value)}
-                    placeholder="kcal"
-                    className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-700 focus:outline-none text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Białko (g)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={aiProtein}
-                    onChange={(e) => setAiProtein(e.target.value)}
-                    placeholder="g"
-                    className="w-full bg-slate-950 border border-slate-900 rounded-xl px-2 py-2 text-slate-200 placeholder-slate-700 focus:outline-none text-xs text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Węgle (g)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={aiCarbs}
-                    onChange={(e) => setAiCarbs(e.target.value)}
-                    placeholder="g"
-                    className="w-full bg-slate-950 border border-slate-900 rounded-xl px-2 py-2 text-slate-200 placeholder-slate-700 focus:outline-none text-xs text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Tłuszcze (g)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={aiFat}
-                    onChange={(e) => setAiFat(e.target.value)}
-                    placeholder="g"
-                    className="w-full bg-slate-950 border border-slate-900 rounded-xl px-2 py-2 text-slate-200 placeholder-slate-700 focus:outline-none text-xs text-center"
-                  />
-                </div>
-              </div>
-
-              <div className="border-t border-slate-800 pt-3">
-                <label className="block text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1.5">Ile gramów zjadłeś? *</label>
-                <input
-                  type="number"
-                  value={aiEatenGrams}
-                  onChange={(e) => setAiEatenGrams(e.target.value)}
-                  placeholder="np. 150"
-                  className="w-full bg-slate-950 border border-emerald-500/30 rounded-xl px-4 py-3 text-slate-200 font-bold focus:outline-none focus:border-emerald-500 text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setIsVerifyingAIResult(false)}
-                className="py-3 bg-slate-900 border border-slate-800 text-slate-400 rounded-xl hover:bg-slate-800 text-sm font-semibold transition-all active:scale-[0.98] cursor-pointer"
-              >
-                Anuluj
-              </button>
-              <button
-                onClick={() => {
-                  const portion = parseFloat(aiPortionGrams);
-                  const kcal = parseFloat(aiKcal);
-                  const protein = parseFloat(aiProtein) || 0;
-                  const carbs = parseFloat(aiCarbs) || 0;
-                  const fat = parseFloat(aiFat) || 0;
-                  const eaten = parseFloat(aiEatenGrams);
-
-                  if (isNaN(portion) || portion <= 0 || isNaN(kcal) || isNaN(eaten) || eaten <= 0) {
-                    alert('Proszę podać prawidłowe liczby dla bazy referencyjnej, kalorii oraz zjedzonej wagi.');
-                    return;
-                  }
-
-                  const factor = eaten / portion;
-                  const finalKcal = Math.round(kcal * factor);
-                  const finalProtein = protein * factor;
-                  const finalCarbs = carbs * factor;
-                  const finalFat = fat * factor;
-
-                  const newItem: MealItem = {
-                    id: crypto.randomUUID(),
-                    name: aiName || 'Produkt z etykiety',
-                    calories: finalKcal,
-                    protein: finalProtein,
-                    carbs: finalCarbs,
-                    fat: finalFat,
-                    weight: eaten
-                  };
-
-                  updateMealItem(category, newItem);
-                  setIsVerifyingAIResult(false);
-                  onBack();
-                }}
-                className="py-3 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer"
-              >
-                Dodaj posiłek
-              </button>
-            </div>
           </div>
         </div>
       )}
