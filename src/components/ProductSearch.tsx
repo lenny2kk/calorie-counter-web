@@ -50,6 +50,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scannedBarcode, setScannedBarcode] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
 
   // Filter lists based on search query
   const filteredCustom = searchText
@@ -227,9 +228,12 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
       return;
     }
     let html5QrCode: Html5Qrcode | null = null;
+    let isMounted = true;
     
     const startScanner = async () => {
       try {
+        if (!isMounted) return;
+
         html5QrCode = new Html5Qrcode("reader", {
           formatsToSupport: [
             Html5QrcodeSupportedFormats.EAN_13,
@@ -241,6 +245,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
           },
           verbose: false
         });
+
         await html5QrCode.start(
           {
             facingMode: "environment",
@@ -265,21 +270,38 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
             // Quiet failure callback
           }
         );
+
+        if (!isMounted) {
+          if (html5QrCode.isScanning) {
+            await html5QrCode.stop();
+          }
+        }
       } catch (err: any) {
         console.error("Failed to start scanner:", err);
-        setScanError("Nie można uruchomić aparatu. Upewnij się, że zezwoliłeś na dostęp do kamery.");
+        if (isMounted) {
+          setScanError("Nie można uruchomić aparatu. Upewnij się, że zezwoliłeś na dostęp do kamery.");
+        }
       }
     };
 
-    const timer = setTimeout(startScanner, 150);
+    const timer = setTimeout(startScanner, 200);
 
     return () => {
+      isMounted = false;
       clearTimeout(timer);
-      if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().catch(console.error);
+      if (html5QrCode) {
+        if (html5QrCode.isScanning) {
+          html5QrCode.stop().catch((err) => console.error("Error stopping camera on unmount:", err));
+        } else {
+          try {
+            html5QrCode.clear();
+          } catch (e) {
+            // Quiet catch
+          }
+        }
       }
     };
-  }, [isScanning]);
+  }, [isScanning, retryCount]);
 
   return (
     <div className="space-y-6 pb-20 animate-fade-in">
@@ -630,10 +652,19 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
 
           <div className="relative w-full max-w-sm aspect-square mx-auto rounded-3xl overflow-hidden border border-slate-800/85 bg-slate-950 flex items-center justify-center">
             {scanError ? (
-              <div className="text-center p-6 space-y-3.5 max-w-xs">
+              <div className="text-center p-6 space-y-4 max-w-xs flex flex-col items-center">
                 <p className="text-red-400 text-sm font-semibold leading-relaxed">{scanError}</p>
-                <p className="text-slate-500 text-xxs leading-relaxed">
-                  Spróbuj ręcznie wpisać kod w pasek wyszukiwania lub kliknij przycisk "+" u góry, aby dodać produkt.
+                <button
+                  onClick={() => {
+                    setScanError(null);
+                    setRetryCount(r => r + 1);
+                  }}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-4 py-2 rounded-xl text-xs active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
+                >
+                  Spróbuj ponownie
+                </button>
+                <p className="text-slate-500 text-xxs leading-relaxed pt-2">
+                  Upewnij się, że używasz produkcyjnego linku HTTPS (np. z Vercela). Lokalne połączenia na iPhonie mogą być blokowane.
                 </p>
               </div>
             ) : (
