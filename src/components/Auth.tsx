@@ -106,7 +106,7 @@ export const Auth: React.FC = () => {
           <div className="space-y-1.5">
             <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider pl-0.5">Adres E-mail</label>
             <div className="relative">
-              <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-600" />
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
               <input
                 type="email"
                 required
@@ -114,7 +114,7 @@ export const Auth: React.FC = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
                 placeholder="np. jan.kowalski@example.com"
-                className="w-full bg-slate-950 border border-slate-900 rounded-xl pl-10 pr-4 py-3 text-slate-200 placeholder-slate-700 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+                className="w-full bg-slate-950 border border-slate-900 rounded-xl pl-10 pr-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none focus:border-emerald-500 transition-colors text-base"
               />
             </div>
           </div>
@@ -123,7 +123,7 @@ export const Auth: React.FC = () => {
           <div className="space-y-1.5">
             <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider pl-0.5">Hasło</label>
             <div className="relative">
-              <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-600" />
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
               <input
                 type="password"
                 required
@@ -131,7 +131,7 @@ export const Auth: React.FC = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
                 placeholder="••••••••"
-                className="w-full bg-slate-950 border border-slate-900 rounded-xl pl-10 pr-4 py-3 text-slate-200 placeholder-slate-700 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+                className="w-full bg-slate-950 border border-slate-900 rounded-xl pl-10 pr-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none focus:border-emerald-500 transition-colors text-base"
               />
             </div>
           </div>

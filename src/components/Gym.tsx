@@ -160,7 +160,7 @@ export const Gym: React.FC = () => {
               onChange={(e) => setExerciseName(e.target.value)}
               placeholder="Nazwa ćwiczenia (np. Przysiad)"
               required
-              className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-700 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+              className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-100 placeholder-slate-700 placeholder:text-sm focus:outline-none focus:border-emerald-500 transition-colors text-base"
             />
           </div>
 
@@ -193,7 +193,7 @@ export const Gym: React.FC = () => {
                 onChange={(e) => setWeight(e.target.value)}
                 placeholder="np. 60"
                 required
-                className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-700 focus:outline-none text-sm"
+                className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none text-base"
               />
             </div>
             <div>
@@ -204,7 +204,7 @@ export const Gym: React.FC = () => {
                   value={dateStr}
                   onChange={(e) => setDateStr(e.target.value)}
                   required
-                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none text-sm cursor-pointer"
+                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 focus:outline-none text-base cursor-pointer"
                 />
               </div>
             </div>
@@ -303,7 +303,7 @@ export const Gym: React.FC = () => {
             <select
               value={selectedExerciseFilter}
               onChange={(e) => setSelectedExerciseFilter(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-900 text-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+              className="w-full bg-slate-950 border border-slate-900 text-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer text-base"
             >
               <option value="Wszystkie">Wszystkie</option>
               {loggedExercises.map(ex => (
@@ -316,7 +316,7 @@ export const Gym: React.FC = () => {
             <select
               value={selectedMetric}
               onChange={(e) => setSelectedMetric(e.target.value as any)}
-              className="w-full bg-slate-950 border border-slate-900 text-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+              className="w-full bg-slate-950 border border-slate-900 text-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer text-base"
             >
               <option value="maxWeight">Maks. ciężar (kg)</option>
               <option value="volume">Objętość (kg*ser*pow)</option>

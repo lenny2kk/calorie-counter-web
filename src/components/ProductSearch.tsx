@@ -335,7 +335,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
           }}
           onKeyDown={(e) => e.key === 'Enter' && searchOFF()}
           placeholder="Wyszukaj produkt (np. jajko, kurczak)..."
-          className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+          className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-1.5 text-slate-100 placeholder-slate-600 placeholder:text-sm focus:outline-none focus:border-emerald-500 transition-colors text-base"
         />
         <button
           onClick={() => setIsScanning(true)}
@@ -515,7 +515,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
                   value={amountString}
                   onChange={(e) => setAmountString(e.target.value)}
                   placeholder="100"
-                  className="w-20 bg-transparent text-right text-slate-200 font-bold focus:outline-none"
+                  className="w-20 bg-transparent text-right text-slate-200 font-bold focus:outline-none text-base"
                 />
                 <span className="text-xs text-slate-500 font-semibold">g</span>
               </div>
@@ -554,7 +554,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
                   value={customName}
                   onChange={(e) => setCustomName(e.target.value)}
                   placeholder="np. Skyr owocowy"
-                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-700 focus:outline-none text-sm"
+                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none text-base"
                 />
               </div>
 
@@ -566,7 +566,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
                     value={customKcal}
                     onChange={(e) => setCustomKcal(e.target.value)}
                     placeholder="kcal"
-                    className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-700 focus:outline-none text-sm"
+                    className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none text-base"
                   />
                 </div>
                 <div>
@@ -576,7 +576,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
                     value={customWeight}
                     onChange={(e) => setCustomWeight(e.target.value)}
                     placeholder="g"
-                    className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-700 focus:outline-none text-sm"
+                    className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none text-base"
                   />
                 </div>
               </div>
@@ -589,7 +589,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
                   value={customProtein}
                   onChange={(e) => setCustomProtein(e.target.value)}
                   placeholder="g"
-                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-700 focus:outline-none text-sm"
+                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none text-base"
                 />
               </div>
 
@@ -601,7 +601,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
                   value={customCarbs}
                   onChange={(e) => setCustomCarbs(e.target.value)}
                   placeholder="g"
-                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-700 focus:outline-none text-sm"
+                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none text-base"
                 />
               </div>
 
@@ -613,7 +613,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
                   value={customFat}
                   onChange={(e) => setCustomFat(e.target.value)}
                   placeholder="g"
-                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-700 focus:outline-none text-sm"
+                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none text-base"
                 />
               </div>
             </div>

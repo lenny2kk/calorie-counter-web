@@ -74,7 +74,7 @@ export const Onboarding: React.FC = () => {
               placeholder="np. 80"
               required
               disabled={isLoading}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-1.5 text-slate-100 placeholder-slate-600 placeholder:text-sm focus:outline-none focus:border-emerald-500 transition-colors text-base"
             />
           </div>
 
@@ -87,7 +87,7 @@ export const Onboarding: React.FC = () => {
               placeholder="np. 180"
               required
               disabled={isLoading}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-1.5 text-slate-100 placeholder-slate-600 placeholder:text-sm focus:outline-none focus:border-emerald-500 transition-colors text-base"
             />
           </div>
 
@@ -100,7 +100,7 @@ export const Onboarding: React.FC = () => {
               placeholder="np. 25"
               required
               disabled={isLoading}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-1.5 text-slate-100 placeholder-slate-600 placeholder:text-sm focus:outline-none focus:border-emerald-500 transition-colors text-base"
             />
           </div>
 
@@ -140,7 +140,7 @@ export const Onboarding: React.FC = () => {
               value={activityLevel}
               disabled={isLoading}
               onChange={(e) => setActivityLevel(parseFloat(e.target.value))}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-1.5 text-slate-100 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer text-base"
             >
               <option value={1.2}>Brak ruchu (biurko, brak treningów)</option>
               <option value={1.375}>Niska aktywność (lekki ruch, 1-3 treningi/tydz)</option>

@@ -143,7 +143,7 @@ export const Settings: React.FC = () => {
                 type="number"
                 value={tempTdee}
                 onChange={(e) => handleManualTdeeChange(e.target.value)}
-                className="w-20 bg-transparent text-right text-slate-200 font-bold focus:outline-none"
+                className="w-20 bg-transparent text-right text-slate-200 font-bold focus:outline-none text-base"
               />
               <span className="text-xs text-slate-500 font-semibold">kcal</span>
             </div>
@@ -154,7 +154,7 @@ export const Settings: React.FC = () => {
             <select
               value={tempGender}
               onChange={(e) => setTempGender(e.target.value as any)}
-              className="bg-transparent text-right text-slate-200 font-bold focus:outline-none cursor-pointer"
+              className="bg-transparent text-right text-slate-200 font-bold focus:outline-none cursor-pointer text-base"
             >
               <option value="Mężczyzna">Mężczyzna</option>
               <option value="Kobieta">Kobieta</option>
@@ -166,7 +166,7 @@ export const Settings: React.FC = () => {
             <select
               value={tempActivityLevel}
               onChange={(e) => setTempActivityLevel(parseFloat(e.target.value))}
-              className="bg-transparent text-right text-slate-200 font-bold focus:outline-none cursor-pointer max-w-[150px] truncate"
+              className="bg-transparent text-right text-slate-200 font-bold focus:outline-none cursor-pointer max-w-[150px] truncate text-base"
             >
               <option value={1.2}>Brak ruchu</option>
               <option value={1.375}>Niska</option>
@@ -182,7 +182,7 @@ export const Settings: React.FC = () => {
               step="0.1"
               value={tempWeight}
               onChange={(e) => setTempWeight(e.target.value)}
-              className="w-16 bg-transparent text-right text-slate-200 font-bold focus:outline-none"
+              className="w-16 bg-transparent text-right text-slate-200 font-bold focus:outline-none text-base"
             />
           </div>
 
@@ -192,7 +192,7 @@ export const Settings: React.FC = () => {
               type="number"
               value={tempHeight}
               onChange={(e) => setTempHeight(e.target.value)}
-              className="w-16 bg-transparent text-right text-slate-200 font-bold focus:outline-none"
+              className="w-16 bg-transparent text-right text-slate-200 font-bold focus:outline-none text-base"
             />
           </div>
 
@@ -202,7 +202,7 @@ export const Settings: React.FC = () => {
               type="number"
               value={tempAge}
               onChange={(e) => setTempAge(e.target.value)}
-              className="w-16 bg-transparent text-right text-slate-200 font-bold focus:outline-none"
+              className="w-16 bg-transparent text-right text-slate-200 font-bold focus:outline-none text-base"
             />
           </div>
         </div>
@@ -267,7 +267,7 @@ export const Settings: React.FC = () => {
             value={tempApiKey}
             onChange={(e) => setTempApiKey(e.target.value)}
             placeholder="Wklej klucz API Gemini..."
-            className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-3 text-slate-200 placeholder-slate-800 focus:outline-none focus:border-emerald-500 transition-colors text-xs"
+            className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-800 placeholder:text-sm focus:outline-none focus:border-emerald-500 transition-colors text-base"
           />
           <button
             onClick={handleSaveApiKey}
@@ -302,7 +302,7 @@ export const Settings: React.FC = () => {
             <select
               value={reminderHour}
               onChange={(e) => setReminderHour(e.target.value)}
-              className="bg-slate-900 text-slate-200 font-bold border border-slate-800 rounded-lg px-2 py-1 cursor-pointer focus:outline-none"
+              className="bg-slate-900 text-slate-200 font-bold border border-slate-800 rounded-lg px-2 py-1 cursor-pointer focus:outline-none text-base"
             >
               {Array.from({ length: 24 }).map((_, i) => {
                 const s = String(i).padStart(2, '0');
@@ -313,7 +313,7 @@ export const Settings: React.FC = () => {
             <select
               value={reminderMinute}
               onChange={(e) => setReminderMinute(e.target.value)}
-              className="bg-slate-900 text-slate-200 font-bold border border-slate-800 rounded-lg px-2 py-1 cursor-pointer focus:outline-none"
+              className="bg-slate-900 text-slate-200 font-bold border border-slate-800 rounded-lg px-2 py-1 cursor-pointer focus:outline-none text-base"
             >
               {Array.from({ length: 12 }).map((_, i) => {
                 const s = String(i * 5).padStart(2, '0');

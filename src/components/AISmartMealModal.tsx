@@ -332,7 +332,7 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
                   value={eatenVal}
                   onChange={(e) => setEatenWeights(prev => ({ ...prev, [msgId]: e.target.value }))}
                   placeholder="100"
-                  className="w-16 bg-transparent text-right text-slate-200 font-bold text-xs focus:outline-none"
+                  className="w-16 bg-transparent text-right text-slate-200 font-bold text-base focus:outline-none placeholder:text-sm"
                 />
                 <span className="text-xxs text-slate-500 font-semibold">g</span>
               </div>
@@ -435,7 +435,7 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             placeholder="Opisz posiłek..."
-            className="flex-1 bg-slate-950 border border-slate-905/70 rounded-xl px-4 py-3 text-slate-200 placeholder-slate-700 focus:outline-none focus:border-purple-500 transition-colors text-xs"
+            className="flex-1 bg-slate-950 border border-slate-905/70 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none focus:border-purple-500 transition-colors text-base"
           />
 
           <button

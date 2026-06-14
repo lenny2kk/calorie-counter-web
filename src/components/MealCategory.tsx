@@ -75,7 +75,7 @@ export const MealCategory: React.FC<MealCategoryProps> = ({
                     )
                   }
                   placeholder={field === 'calories' ? '0' : '0.0'}
-                  className="w-20 bg-transparent text-right text-slate-200 font-bold focus:outline-none placeholder-slate-700"
+                  className="w-20 bg-transparent text-right text-slate-200 font-bold focus:outline-none placeholder-slate-700 placeholder:text-sm text-base"
                 />
                 <span className="text-xs text-slate-500 font-semibold">{unit}</span>
               </div>
