@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useCalorieTracker } from '../hooks/useCalorieTracker';
 import { basicProductsDatabase } from '../data/basicProducts';
-import { ChevronLeft, Search, Plus, Sparkles, User, Clock, Apple, ScanBarcode } from 'lucide-react';
-import type { MealItem } from '../types';
+import { ChevronLeft, Search, Plus, Sparkles, User, Clock, Apple, ScanBarcode, Check, X } from 'lucide-react';
+import type { MealItem, CustomProduct } from '../types';
 import { Html5Qrcode } from 'html5-qrcode';
 import { fetchProductByBarcode } from '../services/foodApi';
 
@@ -52,6 +52,10 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
   const [scannedBarcode, setScannedBarcode] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [scanStatus, setScanStatus] = useState('Skieruj aparat na czysty kod kreskowy...');
+
+  // Quick-add states for "Twoje zapisane produkty"
+  const [activeQuickAddId, setActiveQuickAddId] = useState<string | null>(null);
+  const [quickWeight, setQuickWeight] = useState('100');
 
   // Filter lists based on search query
   const filteredCustom = searchText
@@ -144,6 +148,19 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
 
     addCustomProduct(customName, kcalPer100, pPer100, cPer100, fPer100, scannedBarcode || undefined);
 
+    // Directly add the product to the active meal category
+    const newItem: MealItem = {
+      id: crypto.randomUUID(),
+      name: customName,
+      calories: Math.round(totalKcal),
+      protein: totalProtein,
+      carbs: totalCarbs,
+      fat: totalFat,
+      weight: totalWeight
+    };
+    updateMealItem(category, newItem);
+    addProductToHistory(scannedBarcode || crypto.randomUUID(), customName, kcalPer100, pPer100, cPer100, fPer100);
+
     // Reset creation fields
     setCustomName('');
     setCustomKcal('');
@@ -153,10 +170,40 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
     setCustomWeight('100');
     setScannedBarcode('');
     setIsCreatingCustom(false);
+    onBack();
+  };
 
-    // Prompt search state to find it
-    setSearchText(customName);
-    setHasSearched(true);
+  const handleAddSavedProductDirect = (p: CustomProduct, weightStr: string) => {
+    const amount = parseFloat(weightStr);
+    if (isNaN(amount) || amount <= 0) {
+      alert('Podaj prawidłową wagę.');
+      return;
+    }
+
+    const { kcalPer100g, proteinPer100g, carbsPer100g, fatPer100g, name, id } = p;
+
+    const finalKcal = Math.round((kcalPer100g / 100) * amount);
+    const finalProtein = (proteinPer100g / 100) * amount;
+    const finalCarbs = (carbsPer100g / 100) * amount;
+    const finalFat = (fatPer100g / 100) * amount;
+
+    const newItem: MealItem = {
+      id: crypto.randomUUID(),
+      name,
+      calories: finalKcal,
+      protein: finalProtein,
+      carbs: finalCarbs,
+      fat: finalFat,
+      weight: amount
+    };
+
+    updateMealItem(category, newItem);
+    addProductToHistory(id, name, kcalPer100g, proteinPer100g, carbsPer100g, fatPer100g);
+
+    // Reset and return
+    setActiveQuickAddId(null);
+    setQuickWeight('100');
+    onBack();
   };
 
   const handleBarcodeFound = async (barcode: string) => {
@@ -476,27 +523,94 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
         </div>
       ) : (
         /* History lists (if no search text) */
-        <div className="space-y-4">
-          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1 pl-1">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
-            <span>Ostatnio wybrane</span>
-          </h4>
-          {recentProducts.length > 0 ? (
-            <div className="space-y-2">
-              {recentProducts.map(p => (
-                <div
-                  key={p.id}
-                  onClick={() => setSelectedProduct({ ...p, source: 'history' })}
-                  className="glass-card-interactive rounded-xl p-3.5 flex items-center justify-between text-left"
-                >
-                  <span className="font-semibold text-slate-300 text-sm">{p.name}</span>
-                  <span className="text-xs text-slate-500 font-medium">{Math.round(p.kcalPer100g)} kcal/100g</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-slate-600 text-xs pl-1 italic">Brak ostatnio wybranych produktów.</p>
-          )}
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1 pl-1">
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Ostatnio wybrane</span>
+            </h4>
+            {recentProducts.length > 0 ? (
+              <div className="space-y-2">
+                {recentProducts.map(p => (
+                  <div
+                    key={p.id}
+                    onClick={() => setSelectedProduct({ ...p, source: 'history' })}
+                    className="glass-card-interactive rounded-xl p-3.5 flex items-center justify-between text-left"
+                  >
+                    <span className="font-semibold text-slate-300 text-sm">{p.name}</span>
+                    <span className="text-xs text-slate-500 font-medium">{Math.round(p.kcalPer100g)} kcal/100g</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-600 text-xs pl-1 italic">Brak ostatnio wybranych produktów.</p>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1 pl-1">
+              <User className="w-3.5 h-3.5 text-amber-400" />
+              <span>Twoje zapisane produkty</span>
+            </h4>
+            {customProducts.length > 0 ? (
+              <div className="space-y-2">
+                {customProducts.map(p => (
+                  <div
+                    key={p.id}
+                    className="glass-card rounded-xl p-3.5 flex flex-col space-y-2 border border-slate-900"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-left">
+                        <div className="font-bold text-slate-200 text-sm">{p.name}</div>
+                        <div className="text-xxs text-slate-400 mt-1">
+                          B: {Math.round(p.proteinPer100g)}g  W: {Math.round(p.carbsPer100g)}g  T: {Math.round(p.fatPer100g)}g  ({Math.round(p.kcalPer100g)} kcal/100g)
+                        </div>
+                      </div>
+                      {activeQuickAddId !== p.id && (
+                        <button
+                          onClick={() => {
+                            setActiveQuickAddId(p.id);
+                            setQuickWeight('100');
+                          }}
+                          className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-bold transition-all active:scale-[0.95] cursor-pointer"
+                        >
+                          Dodaj do licznika
+                        </button>
+                      )}
+                    </div>
+                    
+                    {activeQuickAddId === p.id && (
+                      <div className="flex items-center space-x-2 bg-slate-950 p-2 rounded-lg border border-slate-900 mt-1 animate-fade-in">
+                        <span className="text-xxs text-slate-400 font-bold uppercase pl-1">Waga (g):</span>
+                        <input
+                          type="number"
+                          value={quickWeight}
+                          onChange={(e) => setQuickWeight(e.target.value)}
+                          placeholder="100"
+                          className="w-16 bg-transparent text-right text-slate-200 font-bold text-sm focus:outline-none"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleAddSavedProductDirect(p, quickWeight)}
+                          className="p-1.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-md transition-all active:scale-[0.95] cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setActiveQuickAddId(null)}
+                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-md transition-all active:scale-[0.95] cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-600 text-xs pl-1 italic">Brak zapisanych produktów. Kliknij +, aby stworzyć nowy produkt.</p>
+            )}
+          </div>
         </div>
       )}
 

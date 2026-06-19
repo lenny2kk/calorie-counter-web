@@ -67,7 +67,10 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
 
   // Scroll to bottom on new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const timer = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 100);
+    return () => clearTimeout(timer);
   }, [messages]);
 
   // Handle active camera streaming lifecycle
@@ -372,7 +375,7 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
         </div>
 
         {/* Chat log window */}
-        <div className="flex-grow overflow-y-auto pr-1 space-y-4 mb-4 py-2 border-t border-b border-slate-950 flex flex-col">
+        <div className="flex-1 min-h-0 h-[calc(100vh-250px)] md:h-[calc(100dvh-265px)] overflow-y-auto pr-1 space-y-4 mb-4 py-2 border-t border-b border-slate-950 flex flex-col">
           {messages.map((msg) => (
             <div
               key={msg.id}
