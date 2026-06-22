@@ -22,13 +22,16 @@ export interface HistoricalDay {
   caloriesEaten: number;
 }
 
+export interface WorkoutSet {
+  weight: number;
+  reps: number;
+}
+
 export interface WorkoutEntry {
   id: string;
   date: string; // ISO string format
   exerciseName: string;
-  weight: number;
-  sets: number;
-  reps: number;
+  sets: WorkoutSet[];
 }
 
 export interface DietitianReport {

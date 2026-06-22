@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { MealEntry, MealItem, HistoricalDay, WorkoutEntry, HistoryProduct, CustomProduct, ReminderTime, DietitianReport } from '../types';
+import type { MealEntry, MealItem, HistoricalDay, WorkoutEntry, WorkoutSet, HistoryProduct, CustomProduct, ReminderTime, DietitianReport } from '../types';
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
@@ -68,6 +68,28 @@ export const toLocalYYYYMMDD = (date: Date): string => {
 export const parseLocalDate = (dateStr: string): Date => {
   const [yr, mo, dy] = dateStr.split('-').map(Number);
   return new Date(yr, mo - 1, dy);
+};
+
+export const normalizeWorkoutEntries = (entries: any[]): WorkoutEntry[] => {
+  return entries.map(entry => {
+    if (entry && Array.isArray(entry.sets)) {
+      return entry as WorkoutEntry;
+    }
+    // Backward compatibility for old entries
+    const oldSets = typeof entry?.sets === 'number' ? entry.sets : 1;
+    const oldWeight = typeof entry?.weight === 'number' ? entry.weight : 0;
+    const oldReps = typeof entry?.reps === 'number' ? entry.reps : 0;
+    const normalizedSets: WorkoutSet[] = Array.from({ length: oldSets }, () => ({
+      weight: oldWeight,
+      reps: oldReps
+    }));
+    return {
+      id: entry.id || crypto.randomUUID(),
+      date: entry.date || new Date().toISOString(),
+      exerciseName: entry.exerciseName || '',
+      sets: normalizedSets
+    };
+  });
 };
 
 const CalorieTrackerContext = createContext<CalorieTrackerContextType | undefined>(undefined);
@@ -219,7 +241,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
     const unsubStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setWorkoutEntries(data.workoutEntries || []);
+        const rawWorkouts = data.workoutEntries || [];
+        setWorkoutEntries(normalizeWorkoutEntries(rawWorkouts));
         setProductsHistory(data.productsHistory || []);
         setCustomProducts(data.customProducts || []);
         setReminders(data.reminders || []);
@@ -484,11 +507,11 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
     // Generate workout entries
     const demoWorkouts: WorkoutEntry[] = [
-      { id: crypto.randomUUID(), date: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Wyciskanie leżąc', weight: 60, sets: 4, reps: 10 },
-      { id: crypto.randomUUID(), date: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Przysiad ze sztangą', weight: 80, sets: 3, reps: 8 },
-      { id: crypto.randomUUID(), date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Wyciskanie leżąc', weight: 62.5, sets: 4, reps: 10 },
-      { id: crypto.randomUUID(), date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Martwy ciąg', weight: 100, sets: 3, reps: 5 },
-      { id: crypto.randomUUID(), date: now.toISOString(), exerciseName: 'Wyciskanie leżąc', weight: 65, sets: 4, reps: 9 }
+      { id: crypto.randomUUID(), date: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Wyciskanie leżąc', sets: Array.from({ length: 4 }, () => ({ weight: 60, reps: 10 })) },
+      { id: crypto.randomUUID(), date: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Przysiad ze sztangą', sets: Array.from({ length: 3 }, () => ({ weight: 80, reps: 8 })) },
+      { id: crypto.randomUUID(), date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Wyciskanie leżąc', sets: Array.from({ length: 4 }, () => ({ weight: 62.5, reps: 10 })) },
+      { id: crypto.randomUUID(), date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Martwy ciąg', sets: Array.from({ length: 3 }, () => ({ weight: 100, reps: 5 })) },
+      { id: crypto.randomUUID(), date: now.toISOString(), exerciseName: 'Wyciskanie leżąc', sets: Array.from({ length: 4 }, () => ({ weight: 65, reps: 9 })) }
     ];
 
     // Prepopulate custom products

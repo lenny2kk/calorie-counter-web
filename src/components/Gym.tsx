@@ -8,9 +8,7 @@ export const Gym: React.FC = () => {
 
   // Logging Form states
   const [exerciseName, setExerciseName] = useState('');
-  const [weight, setWeight] = useState('');
-  const [sets, setSets] = useState(3);
-  const [reps, setReps] = useState(10);
+  const [setsList, setSetsList] = useState<Array<{ weight: string; reps: number }>>([{ weight: '', reps: 10 }]);
   const [dateStr, setDateStr] = useState(() => toLocalYYYYMMDD(new Date()));
 
   // Chart states
@@ -34,12 +32,20 @@ export const Gym: React.FC = () => {
 
   const suggestionList = loggedExercises.length > 0 ? loggedExercises : predefinedSuggestions;
 
-  const isInputValid = exerciseName.trim() && parseFloat(weight) > 0 && sets > 0 && reps > 0;
+  const isInputValid = 
+    exerciseName.trim() && 
+    setsList.length > 0 && 
+    setsList.every(s => s.weight.trim() !== '' && !isNaN(parseFloat(s.weight)) && parseFloat(s.weight) > 0 && s.reps > 0);
 
   const handleAddWorkout = (e: React.FormEvent) => {
     e.preventDefault();
-    const w = parseFloat(weight);
-    if (isNaN(w) || w <= 0) return;
+
+    const formattedSets = setsList.map(s => ({
+      weight: parseFloat(s.weight),
+      reps: s.reps
+    }));
+
+    if (formattedSets.some(s => isNaN(s.weight) || s.weight <= 0 || s.reps <= 0)) return;
 
     const [yr, mo, dy] = dateStr.split('-').map(Number);
     const localNoonDate = new Date(yr, mo - 1, dy, 12, 0, 0);
@@ -47,12 +53,10 @@ export const Gym: React.FC = () => {
     addWorkoutEntry({
       date: localNoonDate.toISOString(),
       exerciseName: exerciseName.trim(),
-      weight: w,
-      sets,
-      reps
+      sets: formattedSets
     });
 
-    setWeight('');
+    setSetsList([{ weight: '', reps: 10 }]);
   };
 
   // Process data for charts
@@ -99,10 +103,14 @@ export const Gym: React.FC = () => {
       
       let val = 0;
       if (selectedMetric === 'maxWeight') {
-        val = Math.max(...entries.map(e => e.weight));
+        const allWeights = entries.flatMap(e => e.sets.map(s => s.weight));
+        val = allWeights.length > 0 ? Math.max(...allWeights) : 0;
       } else {
-        // Volume: sum (weight * sets * reps)
-        val = entries.reduce((sum, e) => sum + (e.weight * e.sets * e.reps), 0);
+        // Volume: sum of (weight * reps) for all sets of all workouts in this group
+        val = entries.reduce((sum, e) => {
+          const entryVolume = e.sets.reduce((sSum, s) => sSum + (s.weight * s.reps), 0);
+          return sum + entryVolume;
+        }, 0);
       }
 
       if (!chartPointsMap[periodKey]) {
@@ -182,77 +190,119 @@ export const Gym: React.FC = () => {
             ))}
           </div>
 
-          {/* Inputs Row 1: Weight & Date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider mb-1">Ciężar (kg)</label>
-              <input
-                type="number"
-                step="0.5"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                placeholder="np. 60"
-                required
-                className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none text-base"
-              />
-            </div>
-            <div>
-              <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider mb-1">Data treningu</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={dateStr}
-                  onChange={(e) => setDateStr(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 focus:outline-none text-base cursor-pointer"
-                />
-              </div>
-            </div>
+          {/* Date Row */}
+          <div>
+            <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider mb-1">Data treningu</label>
+            <input
+              type="date"
+              value={dateStr}
+              onChange={(e) => setDateStr(e.target.value)}
+              required
+              className="w-full bg-slate-950 border border-slate-900 rounded-xl px-4 py-1.5 text-slate-200 focus:outline-none text-base cursor-pointer"
+            />
           </div>
 
-          {/* Inputs Row 2: Sets & Reps */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider mb-1">Serie</label>
-              <div className="flex items-center justify-between bg-slate-950 border border-slate-900 rounded-xl px-2 py-2">
-                <button
-                  type="button"
-                  onClick={() => setSets(s => Math.max(1, s - 1))}
-                  className="p-1 text-emerald-400 active:scale-[0.9] cursor-pointer"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <span className="font-bold text-slate-200 text-sm">{sets}</span>
-                <button
-                  type="button"
-                  onClick={() => setSets(s => s + 1)}
-                  className="p-1 text-emerald-400 active:scale-[0.9] cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
+          {/* Dynamic Sets Editor */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider">Serie treningowe</label>
+              <span className="text-xxs text-slate-500 font-medium">
+                Suma objętości: <span className="text-emerald-400 font-bold">{
+                  setsList.reduce((sum, s) => sum + (parseFloat(s.weight) || 0) * (s.reps || 0), 0)
+                } kg</span>
+              </span>
             </div>
 
-            <div>
-              <label className="block text-xxs font-semibold text-slate-400 uppercase tracking-wider mb-1">Powtórzenia</label>
-              <div className="flex items-center justify-between bg-slate-950 border border-slate-900 rounded-xl px-2 py-2">
-                <button
-                  type="button"
-                  onClick={() => setReps(r => Math.max(1, r - 1))}
-                  className="p-1 text-emerald-400 active:scale-[0.9] cursor-pointer"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <span className="font-bold text-slate-200 text-sm">{reps}</span>
-                <button
-                  type="button"
-                  onClick={() => setReps(r => r + 1)}
-                  className="p-1 text-emerald-400 active:scale-[0.9] cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {setsList.map((set, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-slate-950/60 border border-slate-900/60 rounded-xl p-2">
+                  {/* Set number badge */}
+                  <div className="w-7 h-7 flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400 font-bold text-xs flex-none">
+                    {idx + 1}
+                  </div>
+
+                  {/* Weight input */}
+                  <div className="flex-1 min-w-[70px]">
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        step="0.5"
+                        placeholder="Ciężar"
+                        value={set.weight}
+                        onChange={(e) => {
+                          const newList = [...setsList];
+                          newList[idx].weight = e.target.value;
+                          setSetsList(newList);
+                        }}
+                        required
+                        className="w-full bg-slate-950 border border-slate-900 rounded-lg px-2 py-1 text-slate-200 placeholder-slate-700 text-xs focus:outline-none focus:border-emerald-500/50"
+                      />
+                      <span className="absolute right-2 text-[10px] text-slate-600 font-semibold pointer-events-none">kg</span>
+                    </div>
+                  </div>
+
+                  {/* Reps selector */}
+                  <div className="flex items-center justify-between bg-slate-950 border border-slate-900 rounded-lg px-1.5 py-1 min-w-[90px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newList = [...setsList];
+                        newList[idx].reps = Math.max(1, newList[idx].reps - 1);
+                        setSetsList(newList);
+                      }}
+                      className="p-0.5 text-emerald-400 active:scale-[0.8] cursor-pointer"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="font-bold text-slate-200 text-xs px-1">{set.reps}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newList = [...setsList];
+                        newList[idx].reps = newList[idx].reps + 1;
+                        setSetsList(newList);
+                      }}
+                      className="p-0.5 text-emerald-400 active:scale-[0.8] cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Delete button */}
+                  <button
+                    type="button"
+                    disabled={setsList.length <= 1}
+                    onClick={() => {
+                      if (setsList.length > 1) {
+                        setSetsList(setsList.filter((_, i) => i !== idx));
+                      }
+                    }}
+                    className={`p-1.5 rounded-lg transition-colors ${
+                      setsList.length > 1
+                        ? 'text-red-400/70 hover:text-red-400 hover:bg-red-500/5 cursor-pointer'
+                        : 'text-slate-800 cursor-not-allowed'
+                    }`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const lastSet = setsList[setsList.length - 1];
+                setSetsList([...setsList, { 
+                  weight: lastSet ? lastSet.weight : '', 
+                  reps: lastSet ? lastSet.reps : 10 
+                }]);
+              }}
+              className="w-full py-2 bg-slate-900/40 hover:bg-slate-900 border border-dashed border-slate-800 hover:border-slate-700 text-emerald-400 hover:text-emerald-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.99]"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Dodaj serię</span>
+            </button>
           </div>
 
           <button
@@ -400,8 +450,16 @@ export const Gym: React.FC = () => {
                     <span>{new Date(entry.date).toLocaleDateString('pl-PL')}</span>
                   </span>
                   <span className="font-bold text-emerald-400">
-                    {entry.weight} kg  ×  {entry.sets} ser.  ×  {entry.reps} powt.
+                    Objętość: {entry.sets.reduce((sum, s) => sum + (s.weight * s.reps), 0)} kg
                   </span>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-900/40">
+                  {entry.sets.map((s, sIdx) => (
+                    <span key={sIdx} className="px-2 py-0.5 rounded-md bg-slate-950 border border-slate-900/60 text-[10px] text-slate-400">
+                      <span className="text-emerald-500/80 font-bold">{sIdx + 1}.</span> {s.weight} kg × {s.reps}
+                    </span>
+                  ))}
                 </div>
               </div>
             ))}
