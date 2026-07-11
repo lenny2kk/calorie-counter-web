@@ -3,7 +3,7 @@ import type { MealEntry, MealItem, HistoricalDay, WorkoutEntry, WorkoutSet, Hist
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, collection } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, collection, deleteDoc } from 'firebase/firestore';
 
 interface CalorieTrackerContextType {
   user: User | null;
@@ -382,13 +382,18 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   const addWorkoutEntry = async (entry: Omit<WorkoutEntry, 'id'>) => {
     if (!user || !db) return;
     const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
+    const workoutId = crypto.randomUUID();
     const newWorkout: WorkoutEntry = {
       ...entry,
-      id: crypto.randomUUID()
+      id: workoutId
     };
     await setDoc(statsRef, {
       workoutEntries: [...workoutEntries, newWorkout]
     }, { merge: true });
+
+    // Save as individual document in subcollection 'workouts'
+    const workoutDocRef = doc(db!, 'users', user.uid, 'workouts', workoutId);
+    await setDoc(workoutDocRef, newWorkout);
   };
 
   const deleteWorkoutEntry = async (id: string) => {
@@ -398,6 +403,10 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
     await setDoc(statsRef, {
       workoutEntries: updated
     }, { merge: true });
+
+    // Delete document from subcollection 'workouts'
+    const workoutDocRef = doc(db!, 'users', user.uid, 'workouts', id);
+    await deleteDoc(workoutDocRef);
   };
 
   const addProductToHistory = async (id: string, name: string, kcal100: number, p100: number, c100: number, f100: number) => {
@@ -513,6 +522,11 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       { id: crypto.randomUUID(), date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), exerciseName: 'Martwy ciąg', sets: Array.from({ length: 3 }, () => ({ weight: 100, reps: 5 })) },
       { id: crypto.randomUUID(), date: now.toISOString(), exerciseName: 'Wyciskanie leżąc', sets: Array.from({ length: 4 }, () => ({ weight: 65, reps: 9 })) }
     ];
+
+    demoWorkouts.forEach(workout => {
+      const workoutDocRef = doc(db!, 'users', user.uid, 'workouts', workout.id);
+      batchPromises.push(setDoc(workoutDocRef, workout));
+    });
 
     // Prepopulate custom products
     const demoCustom: CustomProduct[] = [

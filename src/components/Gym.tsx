@@ -1,5 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useCalorieTracker, toLocalYYYYMMDD } from '../hooks/useCalorieTracker';
+import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { db } from '../services/firebase';
+import type { WorkoutEntry } from '../types';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from 'recharts';
 import { 
   Dumbbell, 
@@ -69,8 +72,30 @@ export const formatPolishDate = (date: Date): string => {
   return `${days[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 };
 
+/** Formatuje datę lokalną na format DD.MM.YYYY */
+export const formatDDMMYYYY = (date: Date): string => {
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}.${m}.${y}`;
+};
+
+/** Pomocnicza funkcja do odmiany słowa "seria" po polsku */
+export const getSetsWord = (count: number): string => {
+  if (count === 1) return 'seria';
+  if (count >= 2 && count <= 4) return 'serie';
+  return 'serii';
+};
+
+/** Pomocnicza funkcja do odmiany słowa "powtórzenie" po polsku */
+export const getRepsWord = (count: number): string => {
+  if (count === 1) return 'powtórzenie';
+  if (count >= 2 && count <= 4) return 'powtórzenia';
+  return 'powtórzeń';
+};
+
 export const Gym: React.FC = () => {
-  const { workoutEntries, addWorkoutEntry, deleteWorkoutEntry } = useCalorieTracker();
+  const { user, workoutEntries, addWorkoutEntry, deleteWorkoutEntry } = useCalorieTracker();
 
   // ==========================================
   // STANY DLA FORMULARZA ZAPISYWANIA TRENINGU
@@ -78,6 +103,66 @@ export const Gym: React.FC = () => {
   const [exerciseName, setExerciseName] = useState('');
   const [setsList, setSetsList] = useState<Array<{ weight: string; reps: number }>>([{ weight: '', reps: 10 }]);
   const [dateStr, setDateStr] = useState(() => toLocalYYYYMMDD(new Date()));
+  
+  // State for last workout preview (undefined = loading, null = first time / empty, WorkoutEntry = data)
+  const [lastWorkout, setLastWorkout] = useState<WorkoutEntry | null | undefined>(undefined);
+
+  useEffect(() => {
+    const trimmedName = exerciseName.trim();
+    if (!trimmedName) {
+      setLastWorkout(null);
+      return;
+    }
+
+    setLastWorkout(undefined);
+
+    const delayDebounce = setTimeout(async () => {
+      try {
+        if (!user || !db) {
+          // Fallback to local entries if db or user is not available
+          const localMatches = workoutEntries
+            .filter(e => e.exerciseName.trim().toLowerCase() === trimmedName.toLowerCase())
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          setLastWorkout(localMatches.length > 0 ? localMatches[0] : null);
+          return;
+        }
+
+        const workoutsRef = collection(db, 'users', user.uid, 'workouts');
+        const q = query(
+          workoutsRef,
+          where('exerciseName', '==', trimmedName),
+          orderBy('date', 'desc'),
+          limit(1)
+        );
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          const docData = querySnapshot.docs[0].data();
+          setLastWorkout({
+            id: querySnapshot.docs[0].id,
+            date: docData.date,
+            exerciseName: docData.exerciseName,
+            sets: docData.sets || []
+          } as WorkoutEntry);
+        } else {
+          // If Firestore subcollection doesn't contain it yet, check local state
+          const localMatches = workoutEntries
+            .filter(e => e.exerciseName.trim().toLowerCase() === trimmedName.toLowerCase())
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          setLastWorkout(localMatches.length > 0 ? localMatches[0] : null);
+        }
+      } catch (err) {
+        console.error("Error fetching last workout from Firestore subcollection:", err);
+        // Fallback to local search if query fails
+        const localMatches = workoutEntries
+          .filter(e => e.exerciseName.trim().toLowerCase() === trimmedName.toLowerCase())
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setLastWorkout(localMatches.length > 0 ? localMatches[0] : null);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounce);
+  }, [exerciseName, user, workoutEntries]);
 
   // ==========================================
   // STANY DLA NOWEJ TRÓJSTOPNIOWEJ ARCHITEKTURY UX
@@ -238,6 +323,65 @@ export const Gym: React.FC = () => {
     };
   }, [workoutEntries, selectedExerciseName, selectedDateStr]);
 
+  const renderLastWorkoutPreview = () => {
+    const trimmedName = exerciseName.trim();
+    if (!trimmedName) return null;
+
+    if (lastWorkout === undefined) {
+      return (
+        <div className="bg-slate-900/40 border border-slate-900/60 rounded-xl px-3 py-2 text-xs text-slate-500 animate-pulse">
+          Ładowanie podglądu ostatniego treningu...
+        </div>
+      );
+    }
+
+    if (lastWorkout === null) {
+      return (
+        <div className="bg-slate-900/30 border border-slate-900/60 border-dashed rounded-xl px-3 py-2 text-xs text-slate-400 italic animate-fade-in flex items-center space-x-1.5">
+          <span role="img" aria-label="sparkles">✨</span>
+          <span>To Twoje pierwsze podejście do tego ćwiczenia. Powodzenia!</span>
+        </div>
+      );
+    }
+
+    // Format details
+    const firstSet = lastWorkout.sets[0];
+    if (!firstSet) return null;
+
+    const allSameWeight = lastWorkout.sets.every(s => s.weight === firstSet.weight);
+    const allSameReps = lastWorkout.sets.every(s => s.reps === firstSet.reps);
+
+    let weightStr = '';
+    let setsRepsStr = '';
+
+    if (allSameWeight && allSameReps) {
+      weightStr = `${firstSet.weight}kg`;
+      setsRepsStr = `${lastWorkout.sets.length} ${getSetsWord(lastWorkout.sets.length)} x ${firstSet.reps} ${getRepsWord(firstSet.reps)}`;
+    } else {
+      const maxWeight = Math.max(...lastWorkout.sets.map(s => s.weight));
+      const minReps = Math.min(...lastWorkout.sets.map(s => s.reps));
+      const maxReps = Math.max(...lastWorkout.sets.map(s => s.reps));
+      weightStr = `${maxWeight}kg (max)`;
+      setsRepsStr = `${lastWorkout.sets.length} ${getSetsWord(lastWorkout.sets.length)} x ${minReps === maxReps ? minReps : `${minReps}-${maxReps}`} ${getRepsWord(maxReps)}`;
+    }
+
+    return (
+      <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl px-3 py-2.5 text-xs text-slate-300 flex flex-wrap items-center gap-x-2 gap-y-1 animate-fade-in shadow-sm">
+        <span className="text-emerald-400 font-bold flex items-center gap-1">
+          <span>🏋️</span>
+          <span>Ostatnio:</span>
+        </span>
+        <span className="font-semibold text-slate-100">{lastWorkout.exerciseName}</span>
+        <span className="text-slate-700">|</span>
+        <span className="text-slate-300">{formatDDMMYYYY(parseSafeDate(lastWorkout.date))}</span>
+        <span className="text-slate-700">|</span>
+        <span className="font-bold text-amber-400">{weightStr}</span>
+        <span className="text-slate-700">|</span>
+        <span className="text-slate-300 font-medium">{setsRepsStr}</span>
+      </div>
+    );
+  };
+
   // Obsługa powrotu (wstecz) w nawigacji
   const handleBack = () => {
     if (selectedExerciseName) {
@@ -288,6 +432,8 @@ export const Gym: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {renderLastWorkoutPreview()}
 
           {/* Data */}
           <div>
