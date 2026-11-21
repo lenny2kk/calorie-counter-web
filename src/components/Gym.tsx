@@ -843,29 +843,29 @@ export const Gym: React.FC = () => {
                       <LineChart data={exerciseProgress.history}>
                         <XAxis
                           dataKey="displayDate"
-                          stroke="#475569"
+                          stroke="#5a5067"
                           fontSize={10}
                           tickLine={false}
                           axisLine={false}
                         />
                         <YAxis 
-                          stroke="#475569" 
+                          stroke="#5a5067" 
                           fontSize={10} 
                           tickLine={false}
                           axisLine={false}
                           domain={['auto', 'auto']}
                         />
                         <Tooltip
-                          contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px' }}
+                          contentStyle={{ backgroundColor: '#1f1a27', borderColor: '#2d2637', borderRadius: '12px' }}
                           labelClassName="text-slate-400 font-bold"
                           formatter={(value: any) => [`${value} kg`, selectedMetric === 'maxWeight' ? 'Maksymalny Ciężar' : 'Objętość'] }
                         />
                         <Line
                           type="monotone"
                           dataKey={selectedMetric}
-                          stroke="#10b981"
+                          stroke="#f5b21f"
                           strokeWidth={2.5}
-                          activeDot={{ r: 6, fill: '#10b981', stroke: '#020617', strokeWidth: 2 }}
+                          activeDot={{ r: 6, fill: '#f5b21f', stroke: '#15111b', strokeWidth: 2 }}
                           dot={(props: any) => {
                             const { cx, cy, payload } = props;
                             // Wyróżnij dzisiejszy/wybrany punkt na wykresie
@@ -876,8 +876,8 @@ export const Gym: React.FC = () => {
                                 cx={cx} 
                                 cy={cy} 
                                 r={isCurrent ? 5 : 3.5} 
-                                fill={isCurrent ? '#f59e0b' : '#10b981'} 
-                                stroke="#020617" 
+                                fill={isCurrent ? '#f7714d' : '#f5b21f'} 
+                                stroke="#15111b" 
                                 strokeWidth={isCurrent ? 2 : 1.5} 
                               />
                             );

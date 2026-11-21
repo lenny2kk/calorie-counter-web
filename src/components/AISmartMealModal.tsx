@@ -5,7 +5,7 @@ import { Sparkles, X, Camera, Send, Check, Loader2 } from 'lucide-react';
 import type { MealItem } from '../types';
 
 const sanitizeNumber = (val: any): number => {
-  if (typeof val === 'number') return val;
+  if (typeof val === 'number') return Number.isFinite(val) && val > 0 ? val : 0;
   if (!val) return 0;
   // Zamień polskie przecinki na kropki i usuń wszystkie znaki, które nie są cyframi lub kropką
   const cleaned = String(val).replace(',', '.').replace(/[^0-9.]/g, '');
@@ -355,7 +355,7 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
 
   return (
     <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 animate-fade-in">
-      <div className="fixed inset-y-0 right-0 w-full sm:w-[450px] z-50 flex flex-col bg-[#0f172a] shadow-2xl border-l border-slate-800/80 p-6 relative h-screen max-h-screen">
+      <div className="fixed inset-y-0 right-0 w-full sm:w-[450px] z-50 flex flex-col bg-[#1f1a27] shadow-2xl border-l border-slate-800/80 p-6 relative h-screen max-h-screen">
         
         {/* Close Button */}
         <button

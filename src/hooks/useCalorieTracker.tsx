@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { MealEntry, MealItem, HistoricalDay, WorkoutEntry, WorkoutSet, HistoryProduct, CustomProduct, ReminderTime, DietitianReport } from '../types';
+import type { MealEntry, MealItem, HistoricalDay, WorkoutEntry, WorkoutSet, HistoryProduct, CustomProduct, ReminderTime, DietitianReport, WeightEntry } from '../types';
 import { auth, db } from '../services/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, deleteUser, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import type { User } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, collection, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, collection, deleteDoc, getDocs, writeBatch, deleteField } from 'firebase/firestore';
 
 interface CalorieTrackerContextType {
   user: User | null;
@@ -27,12 +27,16 @@ interface CalorieTrackerContextType {
   productsHistory: HistoryProduct[];
   customProducts: CustomProduct[];
   reminders: ReminderTime[];
+  weightLog: WeightEntry[];
   weight: number;
   height: number;
   age: number;
   gender: 'Mężczyzna' | 'Kobieta';
   activityLevel: number;
+  /** Klucz faktycznie używany do zapytań AI (własny klucz użytkownika albo klucz wspólny z konfiguracji). */
   apiKey: string;
+  /** Klucz wpisany przez użytkownika w Ustawieniach (pusty, jeśli nie podał własnego). */
+  userApiKey: string;
   totalEaten: number;
   totalProtein: number;
   totalCarbs: number;
@@ -52,10 +56,14 @@ interface CalorieTrackerContextType {
   addCustomProduct: (name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number, barcode?: string) => Promise<void>;
   addReminder: (hour: number, minute: number) => Promise<void>;
   deleteReminder: (id: string) => Promise<void>;
+  addWeightEntry: (date: string, weight: number, options?: { syncProfile?: boolean }) => Promise<void>;
+  deleteWeightEntry: (date: string) => Promise<void>;
   setApiKey: (key: string) => Promise<void>;
   setLatestReport: (report: DietitianReport | null) => Promise<void>;
   loadDemoData: () => Promise<void>;
   logout: () => Promise<void>;
+  deleteAllUserData: () => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
 }
 
 export const toLocalYYYYMMDD = (date: Date): string => {
@@ -95,6 +103,47 @@ export const normalizeWorkoutEntries = (entries: any[]): WorkoutEntry[] => {
 const CalorieTrackerContext = createContext<CalorieTrackerContextType | undefined>(undefined);
 
 const DEFAULT_MEAL = (): MealEntry => ({ calories: 0, protein: 0, carbs: 0, fat: 0, items: [] });
+/**
+ * Zamienia dowolną wartość (np. z odpowiedzi AI lub Open Food Facts) na skończoną,
+ * nieujemną liczbę z rozsądnym górnym limitem – chroni sumy i statystyki przed NaN,
+ * wartościami ujemnymi i absurdalnymi danymi zapisanymi do bazy.
+ */
+const safeNum = (val: unknown, max: number): number => {
+  const n = typeof val === 'number' ? val : parseFloat(String(val ?? '').replace(',', '.'));
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(n, max);
+};
+const MAX_KCAL = 20000;
+const MAX_GRAMS = 5000;
+const MAX_NAME_LENGTH = 120;
+const safeName = (val: unknown) => String(val ?? '').trim().slice(0, MAX_NAME_LENGTH) || 'Produkt';
+
+/** TDEE wzorem Mifflin-St Jeor – ten sam w onboardingu, Ustawieniach i dzienniku wagi. */
+export const computeTdee = (w: number, h: number, a: number, g: 'Mężczyzna' | 'Kobieta', activity: number): number => {
+  const s = g === 'Mężczyzna' ? 5 : -161;
+  const bmr = 10 * w + 6.25 * h - 5 * a + s;
+  return Math.round(bmr * activity);
+};
+
+export const MIN_BODY_WEIGHT = 25;
+export const MAX_BODY_WEIGHT = 350;
+
+/** Czyści i sortuje dziennik wagi wczytany z bazy (jeden wpis na dzień, rosnąco po dacie). */
+const normalizeWeightLog = (raw: unknown): WeightEntry[] => {
+  if (!Array.isArray(raw)) return [];
+  const byDate = new Map<string, number>();
+  for (const e of raw) {
+    const date = typeof e?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.date) ? e.date : null;
+    const weight = Number(e?.weight);
+    if (date && Number.isFinite(weight) && weight >= MIN_BODY_WEIGHT && weight <= MAX_BODY_WEIGHT) {
+      byDate.set(date, Math.round(weight * 10) / 10);
+    }
+  }
+  return [...byDate.entries()]
+    .map(([date, weight]) => ({ date, weight }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+};
+
 const DEFAULT_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
 
 export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -115,7 +164,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   const [age, setAge] = useState<number>(25);
   const [gender, setGender] = useState<'Mężczyzna' | 'Kobieta'>('Mężczyzna');
   const [activityLevel, setActivityLevel] = useState<number>(1.2);
-  const [apiKey, setApiKeyState] = useState<string>(DEFAULT_API_KEY);
+  const [userApiKey, setUserApiKey] = useState<string>('');
+  const apiKey = userApiKey || DEFAULT_API_KEY;
 
   // Meals (Loaded per selected date)
   const [meals, setMeals] = useState<{
@@ -137,6 +187,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   const [productsHistory, setProductsHistory] = useState<HistoryProduct[]>([]);
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [reminders, setReminders] = useState<ReminderTime[]>([]);
+  const [weightLog, setWeightLog] = useState<WeightEntry[]>([]);
 
   // Derived Totals
   const totalEaten = meals.breakfast.calories + meals.lunch.calories + meals.dinner.calories + meals.snacks.calories;
@@ -169,7 +220,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       setAge(25);
       setGender('Mężczyzna');
       setActivityLevel(1.2);
-      setApiKeyState(DEFAULT_API_KEY);
+      setUserApiKey('');
       setMeals({
         breakfast: DEFAULT_MEAL(),
         lunch: DEFAULT_MEAL(),
@@ -182,6 +233,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       setProductsHistory([]);
       setCustomProducts([]);
       setReminders([]);
+      setWeightLog([]);
       setMealsLoading(false);
       setStatsLoading(false);
       return;
@@ -202,9 +254,17 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
         setActivityLevel(data.activityLevel || 1.2);
         setTdee(data.tdee || 2000);
         setStrictLimitModeState(data.isStrictLimitMode !== false);
-        setApiKeyState(data.apiKey || DEFAULT_API_KEY);
+        // Starsze wersje kopiowały wspólny klucz z konfiguracji do profilu każdego
+        // użytkownika – taki wpis nie jest kluczem użytkownika, więc go usuwamy.
+        if (DEFAULT_API_KEY && data.apiKey === DEFAULT_API_KEY) {
+          setUserApiKey('');
+          setDoc(profileRef, { apiKey: deleteField() }, { merge: true }).catch(() => {});
+        } else {
+          setUserApiKey(typeof data.apiKey === 'string' ? data.apiKey : '');
+        }
         setOnboardingCompleted(data.onboardingCompleted === true);
       } else {
+        setUserApiKey('');
         setOnboardingCompleted(false);
       }
     });
@@ -246,6 +306,9 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
         setProductsHistory(data.productsHistory || []);
         setCustomProducts(data.customProducts || []);
         setReminders(data.reminders || []);
+        setWeightLog(normalizeWeightLog(data.weightLog));
+      } else {
+        setWeightLog([]);
       }
     });
 
@@ -300,15 +363,25 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       activityLevel: al,
       tdee: computedTdee,
       isStrictLimitMode,
-      apiKey,
       onboardingCompleted: true
     }, { merge: true });
+    // Pierwszy punkt na wykresie wagi
+    await addWeightEntry(toLocalYYYYMMDD(new Date()), w, { syncProfile: false });
   };
 
   const updateMealItem = async (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks', item: MealItem) => {
     if (!user || !db) return;
     const mealsRef = doc(db!, 'users', user.uid, 'meals', selectedDate);
     const currentEntry = meals[category];
+    item = {
+      ...item,
+      name: safeName(item.name),
+      calories: Math.round(safeNum(item.calories, MAX_KCAL)),
+      protein: safeNum(item.protein, MAX_GRAMS),
+      carbs: safeNum(item.carbs, MAX_GRAMS),
+      fat: safeNum(item.fat, MAX_GRAMS),
+      weight: safeNum(item.weight, MAX_GRAMS * 4),
+    };
     const updatedItems = [...currentEntry.items, item];
 
     const updatedEntry: MealEntry = {
@@ -351,7 +424,7 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
     const currentEntry = meals[category];
     const updatedEntry = {
       ...currentEntry,
-      [field]: value
+      [field]: field === 'calories' ? Math.round(safeNum(value, MAX_KCAL)) : safeNum(value, MAX_GRAMS)
     };
 
     await setDoc(mealsRef, {
@@ -411,6 +484,8 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
   const addProductToHistory = async (id: string, name: string, kcal100: number, p100: number, c100: number, f100: number) => {
     if (!user || !db) return;
+    name = safeName(name);
+    kcal100 = safeNum(kcal100, 1000); p100 = safeNum(p100, 100); c100 = safeNum(c100, 100); f100 = safeNum(f100, 100);
     const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const idx = productsHistory.findIndex(item => item.id === id);
     
@@ -441,6 +516,9 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
   const addCustomProduct = async (name: string, kcalPer100g: number, proteinPer100g: number, carbsPer100g: number, fatPer100g: number, barcode?: string) => {
     if (!user || !db) return;
+    name = safeName(name);
+    kcalPer100g = safeNum(kcalPer100g, 1000); proteinPer100g = safeNum(proteinPer100g, 100);
+    carbsPer100g = safeNum(carbsPer100g, 100); fatPer100g = safeNum(fatPer100g, 100);
     const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
     const newProduct: CustomProduct = {
       id: crypto.randomUUID(),
@@ -468,6 +546,48 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
 
     await setDoc(statsRef, {
       reminders: [...reminders, newReminder]
+    }, { merge: true });
+  };
+
+  /**
+   * Zapisuje pomiar wagi (jeden na dzień – kolejny z tą samą datą go zastępuje).
+   * Jeśli to najnowszy pomiar, aktualizuje też wagę w profilu, a TDEE przelicza
+   * tylko wtedy, gdy nie był wpisany ręcznie (czyli zgadza się z wyliczonym wzorem).
+   */
+  const addWeightEntry = async (date: string, newWeight: number, options: { syncProfile?: boolean } = {}) => {
+    if (!user || !db) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const w = Math.round(safeNum(newWeight, MAX_BODY_WEIGHT) * 10) / 10;
+    if (w < MIN_BODY_WEIGHT) return;
+
+    const updatedLog = normalizeWeightLog([...weightLog.filter(e => e.date !== date), { date, weight: w }]);
+    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
+    await setDoc(statsRef, { weightLog: updatedLog }, { merge: true });
+
+    const isLatest = updatedLog[updatedLog.length - 1]?.date === date;
+    if (options.syncProfile !== false && isLatest) {
+      await syncProfileWeight(w);
+    }
+  };
+
+  const deleteWeightEntry = async (date: string) => {
+    if (!user || !db) return;
+    const wasLatest = weightLog[weightLog.length - 1]?.date === date;
+    const updatedLog = weightLog.filter(e => e.date !== date);
+    const statsRef = doc(db!, 'users', user.uid, 'statistics', 'data');
+    await setDoc(statsRef, { weightLog: updatedLog }, { merge: true });
+    if (wasLatest && updatedLog.length > 0) {
+      await syncProfileWeight(updatedLog[updatedLog.length - 1].weight);
+    }
+  };
+
+  const syncProfileWeight = async (w: number) => {
+    if (!user || !db || w === weight) return;
+    const profileRef = doc(db!, 'users', user.uid, 'profile', 'data');
+    const tdeeIsAuto = Math.abs(tdee - computeTdee(weight, height, age, gender, activityLevel)) <= 1;
+    await setDoc(profileRef, {
+      weight: w,
+      ...(tdeeIsAuto ? { tdee: computeTdee(w, height, age, gender, activityLevel) } : {}),
     }, { merge: true });
   };
 
@@ -544,6 +664,37 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
     alert("Załadowano dane demonstracyjne w chmurze Firestore!");
   };
 
+  /** Usuwa z Firestore wszystkie dokumenty użytkownika: posiłki, treningi, statystyki i profil. */
+  const deleteAllUserData = async () => {
+    if (!user || !db) return;
+    const uid = user.uid;
+    const [mealsSnap, workoutsSnap] = await Promise.all([
+      getDocs(collection(db, 'users', uid, 'meals')),
+      getDocs(collection(db, 'users', uid, 'workouts')),
+    ]);
+    const refs = [
+      ...mealsSnap.docs.map(d => d.ref),
+      ...workoutsSnap.docs.map(d => d.ref),
+      doc(db, 'users', uid, 'statistics', 'data'),
+      doc(db, 'users', uid, 'profile', 'data'),
+    ];
+    // Firestore przyjmuje maks. 500 operacji w jednym batchu
+    for (let i = 0; i < refs.length; i += 450) {
+      const batch = writeBatch(db);
+      refs.slice(i, i + 450).forEach(ref => batch.delete(ref));
+      await batch.commit();
+    }
+    localStorage.clear();
+  };
+
+  /** Potwierdza hasło, usuwa wszystkie dane, a na końcu samo konto Firebase Auth. */
+  const deleteAccount = async (password: string) => {
+    if (!user || !user.email) return;
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+    await deleteAllUserData();
+    await deleteUser(user);
+  };
+
   const logout = async () => {
     if (!auth) return;
     await signOut(auth!);
@@ -567,12 +718,14 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       productsHistory,
       customProducts,
       reminders,
+      weightLog,
       weight,
       height,
       age,
       gender,
       activityLevel,
       apiKey,
+      userApiKey,
       totalEaten,
       totalProtein,
       totalCarbs,
@@ -591,10 +744,14 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
       addCustomProduct,
       addReminder,
       deleteReminder,
+      addWeightEntry,
+      deleteWeightEntry,
       setApiKey,
       setLatestReport,
       loadDemoData,
-      logout
+      logout,
+      deleteAllUserData,
+      deleteAccount
     }}>
       {children}
     </CalorieTrackerContext.Provider>

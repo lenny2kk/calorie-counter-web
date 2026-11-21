@@ -65,8 +65,9 @@ export const fetchProductByBarcode = async (
   barcode: string,
   onStatusUpdate?: (status: string) => void
 ): Promise<LocalProductDetails | null> => {
-  const cleanBarcode = barcode.trim();
-  if (!cleanBarcode) return null;
+  // Kody EAN/UPC to wyłącznie cyfry (8–14 znaków) – nic innego nie trafia do adresu zapytania
+  const cleanBarcode = barcode.trim().replace(/\s+/g, '');
+  if (!/^\d{6,14}$/.test(cleanBarcode)) return null;
 
   const userAgent = 'CalorieCounterApp - Web - Version 1.0 - https://github.com/lenny2kk/calorie-counter-IOS';
 

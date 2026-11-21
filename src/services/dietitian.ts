@@ -66,10 +66,12 @@ Dane użytkownika z dzisiejszego dnia (stan na 18:00):
 - Spożyte węglowodany: ${totalCarbs} g
 - Spożyte tłuszcze: ${totalFat} g`;
 
-  const response = await fetch(`${BASE_URL}?key=${apiKey}`, {
+  const response = await fetch(BASE_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      // Klucz w nagłówku, a nie w URL – adresy URL trafiają do logów i historii
+      'x-goog-api-key': apiKey,
     },
     body: JSON.stringify({
       contents: [
@@ -149,10 +151,12 @@ Format struktury ma wyglądać dokładnie tak:
 Jeśli tekst nie dotyczy jedzenia, zwróć same zera.
 Posiłek do analizy na 100g: ${inputText}`;
 
-  const response = await fetch(`${BASE_URL}?key=${apiKey}`, {
+  const response = await fetch(BASE_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      // Klucz w nagłówku, a nie w URL – adresy URL trafiają do logów i historii
+      'x-goog-api-key': apiKey,
     },
     body: JSON.stringify({
       contents: [
@@ -179,7 +183,18 @@ Posiłek do analizy na 100g: ${inputText}`;
 
   try {
     const cleanText = cleanJsonResponse(rawText);
-    const mealResult: AIMealResult = JSON.parse(cleanText);
+    const parsed = JSON.parse(cleanText);
+    // Odpowiedź modelu traktujemy jak niezaufane dane: tylko skończone, nieujemne liczby w rozsądnym zakresie
+    const num = (v: unknown, max: number) => {
+      const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(',', '.'));
+      return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0;
+    };
+    const mealResult: AIMealResult = {
+      kcalPer100g: num(parsed?.kcalPer100g, 1000),
+      proteinPer100g: num(parsed?.proteinPer100g, 100),
+      carbsPer100g: num(parsed?.carbsPer100g, 100),
+      fatPer100g: num(parsed?.fatPer100g, 100),
+    };
     return mealResult;
   } catch (err) {
     if (err instanceof FirebaseError) {
@@ -221,10 +236,12 @@ export async function analyzeLabelImage(params: {
   }
   Skoncentruj się na polskich słowach kluczowych: energia, kalorie, białko, węglowodany, tłuszcz. Jeśli na zdjęciu nie ma tabeli, zwróć pusty obiekt {}.`;
 
-  const response = await fetch(`${BASE_URL}?key=${apiKey}`, {
+  const response = await fetch(BASE_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      // Klucz w nagłówku, a nie w URL – adresy URL trafiają do logów i historii
+      'x-goog-api-key': apiKey,
     },
     body: JSON.stringify({
       contents: [

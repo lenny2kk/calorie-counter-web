@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Reguły dostępu do Firestore dla CalorieCounter.
+// Każdy użytkownik ma dostęp wyłącznie do własnych dokumentów w /users/{uid}/...
+// (profile, meals, statistics, workouts). Wszystko inne jest zablokowane.
+//
+// Wdrożenie:  npx firebase-tools deploy --only firestore:rules --project <ID projektu>
+// albo wklej treść w konsoli Firebase → Firestore Database → Reguły.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Domyślnie: brak dostępu
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

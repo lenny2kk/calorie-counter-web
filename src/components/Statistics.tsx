@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useCalorieTracker, toLocalYYYYMMDD } from '../hooks/useCalorieTracker';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { ChevronLeft, ChevronRight, Scale, Info } from 'lucide-react';
+import { WeightLog } from './WeightLog';
 
 export const Statistics: React.FC = () => {
   const { historicalDays, weight, height, statsLoading } = useCalorieTracker();
@@ -129,25 +130,25 @@ export const Statistics: React.FC = () => {
         <div className="h-64 w-full -ml-6 text-xxs">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={weekDays}>
-              <XAxis dataKey="name" stroke="#475569" fontSize={9} />
-              <YAxis stroke="#475569" fontSize={9} />
+              <XAxis dataKey="name" stroke="#5a5067" fontSize={9} />
+              <YAxis stroke="#5a5067" fontSize={9} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px' }}
-                cursor={{ fill: '#1e293b', opacity: 0.2 }}
+                contentStyle={{ backgroundColor: '#1f1a27', borderColor: '#2d2637', borderRadius: '12px' }}
+                cursor={{ fill: '#2d2637', opacity: 0.2 }}
                 labelClassName="text-slate-400 font-bold"
               />
-              <Bar dataKey="calories" fill="#10b981" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="calories" fill="#f5b21f" radius={[4, 4, 0, 0]}>
                 {weekDays.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={entry.calories > 0 ? 'url(#emeraldGradient)' : '#1e293b'}
+                    fill={entry.calories > 0 ? 'url(#emeraldGradient)' : '#2d2637'}
                   />
                 ))}
               </Bar>
               <defs>
                 <linearGradient id="emeraldGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#059669" stopOpacity={0.6} />
+                  <stop offset="0%" stopColor="#f5b21f" stopOpacity={1} />
+                  <stop offset="100%" stopColor="#d9930f" stopOpacity={0.6} />
                 </linearGradient>
               </defs>
             </BarChart>
@@ -172,6 +173,9 @@ export const Statistics: React.FC = () => {
           <span className="font-bold text-blue-400">{averageWeeklyCalories} kcal</span>
         </div>
       </div>
+
+      {/* WEIGHT LOG */}
+      <WeightLog />
 
       {/* BMI PANEL */}
       <div className="glass-card rounded-2xl p-5 space-y-4">
@@ -216,7 +220,7 @@ export const Statistics: React.FC = () => {
         <div className="flex items-start bg-slate-950/40 p-3 rounded-xl border border-slate-900 text-xxs text-slate-400 space-x-2">
           <Info className="w-4 h-4 text-emerald-400 flex-none" />
           <p className="leading-relaxed">
-            BMI (Wskaźnik Masy Ciała) odnosi się do wagi i wzrostu podanych w profilu. Zakres 18.5–25 jest uważany za prawidłowy.
+            BMI (Wskaźnik Masy Ciała) liczony jest z najnowszego pomiaru wagi i wzrostu z profilu. Zakres 18.5–25 jest uważany za prawidłowy.
           </p>
         </div>
       </div>

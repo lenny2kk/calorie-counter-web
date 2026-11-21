@@ -86,3 +86,8 @@ export interface BaseProduct {
   carbsPer100g: number;
   fatPer100g: number;
 }
+
+export interface WeightEntry {
+  date: string; // YYYY-MM-DD (lokalna data pomiaru)
+  weight: number; // kg
+}
