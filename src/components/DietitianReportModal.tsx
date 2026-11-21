@@ -49,7 +49,7 @@ export const DietitianReportModal: React.FC<DietitianReportModalProps> = ({ isOp
 
   return (
     <div className="fixed inset-0 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm z-50 animate-fade-in overflow-y-auto">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 relative shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 relative shadow-2xl max-h-[90dvh] overflow-y-auto">
         
         {/* Close Button */}
         <button

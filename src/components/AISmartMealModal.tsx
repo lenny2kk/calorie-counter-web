@@ -354,13 +354,14 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 animate-fade-in">
-      <div className="fixed inset-y-0 right-0 w-full sm:w-[450px] z-50 flex flex-col bg-[#1f1a27] shadow-2xl border-l border-slate-800/80 p-6 relative h-screen max-h-screen">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 animate-fade-in flex justify-end">
+      {/* 100dvh = faktycznie widoczna wysokość (bez paska przeglądarki); safe-area = notch i pasek „home” */}
+      <div className="relative w-full sm:w-[450px] h-[100dvh] flex flex-col bg-slate-900 shadow-2xl border-l border-slate-800/80 px-5 sm:px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
         
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-slate-500 hover:text-slate-300 rounded-full hover:bg-slate-800 transition-all cursor-pointer"
+          className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 p-2 text-slate-500 hover:text-slate-300 rounded-full hover:bg-slate-800 transition-all cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -375,7 +376,7 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
         </div>
 
         {/* Chat log window */}
-        <div className="flex-1 overflow-y-auto pr-1 space-y-4 mb-4 py-2 border-t border-b border-slate-950 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 space-y-4 mb-3 py-2 border-t border-b border-slate-950 flex flex-col">
           {messages.map((msg) => (
             <div
               key={msg.id}
