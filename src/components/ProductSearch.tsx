@@ -394,7 +394,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
         <button
           onClick={searchOFF}
           disabled={!searchText || isLoading}
-          className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-5 py-3 rounded-xl active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer flex items-center"
+          className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-5 py-3 rounded-xl active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer flex items-center"
         >
           <Search className="w-4 h-4" />
         </button>
@@ -592,7 +592,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
                         />
                         <button
                           onClick={() => handleAddSavedProductDirect(p, quickWeight)}
-                          className="p-1.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-md transition-all active:scale-[0.95] cursor-pointer"
+                          className="p-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-md transition-all active:scale-[0.95] cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" />
                         </button>
@@ -644,7 +644,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
               </button>
               <button
                 onClick={handleAddProduct}
-                className="py-3 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer"
+                className="py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer"
               >
                 Dodaj
               </button>
@@ -744,7 +744,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
               </button>
               <button
                 onClick={handleSaveCustomProduct}
-                className="py-3 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer"
+                className="py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-sm font-bold transition-all active:scale-[0.98] cursor-pointer"
               >
                 Zapisz
               </button>
@@ -771,7 +771,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({ category, onBack }
                     setScanError(null);
                     setRetryCount(r => r + 1);
                   }}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-4 py-2 rounded-xl text-xs active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
                 >
                   Spróbuj ponownie
                 </button>

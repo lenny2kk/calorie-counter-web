@@ -343,7 +343,7 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
             
             <button
               onClick={() => handleAddMealFromCard(msgId, result)}
-              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold rounded-xl active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
+              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-xl active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
             >
               Dodaj do mojego dnia
             </button>
@@ -438,7 +438,7 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             placeholder="Opisz posiłek..."
-            className="flex-1 bg-slate-950 border border-slate-905/70 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none focus:border-purple-500 transition-colors text-base"
+            className="flex-1 bg-slate-950 border border-slate-900/70 rounded-xl px-4 py-1.5 text-slate-200 placeholder-slate-700 placeholder:text-sm focus:outline-none focus:border-purple-500 transition-colors text-base"
           />
 
           <button
@@ -447,7 +447,7 @@ export const AISmartMealModal: React.FC<AISmartMealModalProps> = ({ isOpen, cate
             className={`p-3 rounded-xl font-bold text-white transition-all flex items-center justify-center ${
               textInput.trim()
                 ? 'bg-purple-600 hover:bg-purple-500 active:scale-[0.95] cursor-pointer'
-                : 'bg-slate-850 text-slate-600 border border-slate-900 cursor-not-allowed'
+                : 'bg-slate-800 text-slate-600 border border-slate-900 cursor-not-allowed'
             }`}
           >
             <Send className="w-4 h-4" />

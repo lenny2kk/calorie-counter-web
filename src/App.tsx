@@ -1,12 +1,9 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import './App.css';
 import { CalorieTrackerProvider } from './hooks/useCalorieTracker';
 import { Onboarding } from './components/Onboarding';
 import { Dashboard } from './components/Dashboard';
 import { MealCategory } from './components/MealCategory';
-import { ProductSearch } from './components/ProductSearch';
-import { Gym } from './components/Gym';
-import { Statistics } from './components/Statistics';
 import { Settings } from './components/Settings';
 import { DietitianReportModal } from './components/DietitianReportModal';
 import { AISmartMealModal } from './components/AISmartMealModal';
@@ -19,6 +16,17 @@ import {
   Dumbbell,
   Settings as SettingsIcon,
 } from 'lucide-react';
+
+// Ciężkie ekrany (recharts, skaner kodów) ładowane dopiero przy pierwszym wejściu
+const ProductSearch = lazy(() => import('./components/ProductSearch').then(m => ({ default: m.ProductSearch })));
+const Gym = lazy(() => import('./components/Gym').then(m => ({ default: m.Gym })));
+const Statistics = lazy(() => import('./components/Statistics').then(m => ({ default: m.Statistics })));
+
+const ScreenFallback = () => (
+  <div className="py-24 grid place-items-center">
+    <div className="w-8 h-8 border-[3px] border-emerald-500 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabId = 'dashboard' | 'statistics' | 'gym' | 'settings';
@@ -68,7 +76,7 @@ function InnerApp() {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
         <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-slate-400 text-sm font-semibold tracking-wide animate-pulse">Ładowanie profilu chmury...</p>
+        <p className="text-slate-400 text-sm font-medium">Wczytywanie Twojego profilu…</p>
       </div>
     );
   }
@@ -164,38 +172,41 @@ function InnerApp() {
     settings: 'Ustawienia',
   };
 
+  const isSubPage = activeTab === 'dashboard' && subPage.view !== 'dashboard';
+
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col">
-      {/* ── Top App Bar ──────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-xl border-b border-slate-900/80">
-        <div className="max-w-lg mx-auto px-5 py-4 flex items-center justify-between">
-          <h1 className="text-lg font-black tracking-tight text-slate-100">
-            {activeTab === 'dashboard' && subPage.view === 'dashboard'
-              ? 'Mój Dzień'
-              : activeTab === 'dashboard' && subPage.view === 'meal'
-              ? ''
-              : activeTab === 'dashboard' && subPage.view === 'product-search'
-              ? ''
-              : pageTitles[activeTab]}
+    <div className="min-h-screen flex flex-col">
+      {/* ── Top App Bar (podstrony posiłku mają własny nagłówek z „Wróć”) ── */}
+      {!isSubPage && (
+      <header className="sticky top-0 z-30 bg-slate-950/75 backdrop-blur-xl pt-[env(safe-area-inset-top)]">
+        <div className="max-w-lg mx-auto px-5 h-14 flex items-center justify-between">
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-50">
+            {pageTitles[activeTab]}
           </h1>
-          <div className="flex items-center space-x-1">
-            <span className="text-xxs font-bold uppercase tracking-widest text-emerald-500/70 border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5 rounded-full">
-              CalorieCounter
-            </span>
+          <div className="flex items-center gap-2 text-slate-400" aria-label="CalorieCounter">
+            <svg viewBox="0 0 64 64" className="w-7 h-7" aria-hidden="true">
+              <circle cx="32" cy="32" r="18" fill="none" className="stroke-slate-800" strokeWidth="8" />
+              <circle cx="32" cy="32" r="18" fill="none" className="stroke-emerald-500" strokeWidth="8" strokeLinecap="round" strokeDasharray="80 200" transform="rotate(-90 32 32)" />
+              <circle cx="32" cy="32" r="18" fill="none" className="stroke-teal-500" strokeWidth="8" strokeLinecap="round" strokeDasharray="22 200" strokeDashoffset="-86" transform="rotate(-90 32 32)" />
+            </svg>
           </div>
         </div>
       </header>
+      )}
 
       {/* ── Scrollable Main Content ──────────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-lg mx-auto px-4 pt-5">
-          {renderContent()}
+      <main className={`flex-1 ${isSubPage ? 'pt-[calc(env(safe-area-inset-top)+0.75rem)]' : ''}`}>
+        <div className="max-w-lg mx-auto px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+2rem)]">
+          <Suspense fallback={<ScreenFallback />}>{renderContent()}</Suspense>
         </div>
       </main>
 
-      {/* ── Bottom Tab Bar ───────────────────────────────────────────────── */}
-      <nav className="sticky bottom-0 z-30 bg-slate-950/90 backdrop-blur-xl border-t border-slate-900/80">
-        <div className="max-w-lg mx-auto px-2 py-2 grid grid-cols-4 gap-1">
+      {/* ── Floating Tab Dock ────────────────────────────────────────────── */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-30 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pointer-events-none"
+        aria-label="Nawigacja główna"
+      >
+        <div className="pointer-events-auto max-w-lg mx-auto grid grid-cols-4 gap-1 p-1.5 rounded-[22px] bg-slate-900/90 border border-slate-800 backdrop-blur-xl shadow-[0_16px_40px_-12px_rgb(0_0_0/0.7)]">
           {tabs.map(({ id, label, Icon }) => {
             const isActive = activeTab === id;
             return (
@@ -203,19 +214,17 @@ function InnerApp() {
                 key={id}
                 id={`tab-${id}`}
                 onClick={() => handleTabChange(id)}
-                className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all duration-200 cursor-pointer active:scale-[0.95] ${
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-2xl transition-colors duration-200 cursor-pointer active:scale-[0.96] ${
                   isActive
-                    ? 'bg-emerald-500/10 text-emerald-400'
-                    : 'text-slate-500 hover:text-slate-400 hover:bg-slate-900'
+                    ? 'bg-emerald-500 text-slate-950'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
                 }`}
               >
-                <Icon className={`w-5 h-5 mb-0.5 transition-transform ${isActive ? 'scale-105' : ''}`} />
-                <span className={`text-[10px] font-semibold leading-none ${isActive ? 'font-bold' : ''}`}>
+                <Icon className="w-5 h-5" />
+                <span className={`text-[11px] leading-none ${isActive ? 'font-bold' : 'font-medium'}`}>
                   {label}
                 </span>
-                {isActive && (
-                  <span className="mt-1 block w-4 h-0.5 rounded-full bg-emerald-500" />
-                )}
               </button>
             );
           })}

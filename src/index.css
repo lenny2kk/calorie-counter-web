@@ -1,21 +1,127 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
-body {
-  @apply bg-slate-950 text-slate-100 antialiased font-sans select-none;
-  -webkit-tap-highlight-color: transparent;
+/*
+ * Motyw „Miód i śliwka”
+ * ─────────────────────
+ * Paleta podmienia domyślne skale Tailwinda, dzięki czemu wszystkie istniejące
+ * klasy w komponentach (slate-*, emerald-*, teal-*, amber-*) dostają nowy
+ * wygląd bez przepisywania setek klas:
+ *   slate   → grafit z nutą śliwki (tła, powierzchnie, tekst)
+ *   emerald → miód (główny akcent, aktywne stany, przyciski)
+ *   teal    → morela (drugi kolor gradientów akcentu)
+ *   amber   → mandarynka (węglowodany, ostrzeżenia, rekordy)
+ */
+@theme {
+  --font-sans: "Onest", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", "Onest", ui-sans-serif, system-ui, sans-serif;
+
+  --color-slate-50: #f8f5fa;
+  --color-slate-100: #f2edf5;
+  --color-slate-200: #ded6e5;
+  --color-slate-300: #c3b8cd;
+  --color-slate-400: #a095ad;
+  --color-slate-500: #7a6f88;
+  --color-slate-600: #5a5067;
+  --color-slate-700: #40384c;
+  --color-slate-800: #2d2637;
+  --color-slate-900: #1f1a27;
+  --color-slate-950: #15111b;
+
+  --color-emerald-50: #fff8e6;
+  --color-emerald-100: #ffefc2;
+  --color-emerald-200: #ffe08a;
+  --color-emerald-300: #ffd35e;
+  --color-emerald-400: #ffc640;
+  --color-emerald-500: #f5b21f;
+  --color-emerald-600: #d9930f;
+  --color-emerald-700: #b0730c;
+  --color-emerald-800: #8a5810;
+  --color-emerald-900: #6e4712;
+  --color-emerald-950: #3f2606;
+
+  --color-teal-50: #fff4ec;
+  --color-teal-100: #ffe3cf;
+  --color-teal-200: #ffc7a0;
+  --color-teal-300: #ffab73;
+  --color-teal-400: #ff9a52;
+  --color-teal-500: #f9883a;
+  --color-teal-600: #e06f22;
+  --color-teal-700: #b5561a;
+  --color-teal-800: #8c4418;
+  --color-teal-900: #6f3816;
+  --color-teal-950: #3d1c09;
+
+  --color-amber-50: #fff3ef;
+  --color-amber-100: #ffe1d7;
+  --color-amber-200: #ffc2ae;
+  --color-amber-300: #ffa184;
+  --color-amber-400: #ff8a68;
+  --color-amber-500: #f7714d;
+  --color-amber-600: #dd5734;
+  --color-amber-700: #b54428;
+  --color-amber-800: #8e3822;
+  --color-amber-900: #722f1f;
+  --color-amber-950: #3e150c;
 }
 
-/* Glassmorphism utility card styling */
-.glass-card {
-  @apply bg-slate-900/60 backdrop-blur-md border border-slate-800/80 shadow-xl;
+@layer base {
+  html {
+    background-color: var(--color-slate-950);
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-100 antialiased font-sans;
+    -webkit-tap-highlight-color: transparent;
+    font-feature-settings: "tnum" 1;
+    /* Delikatna poświata u góry – jedyny dekoracyjny element tła */
+    background-image: radial-gradient(
+      120% 60% at 50% -10%,
+      color-mix(in srgb, var(--color-emerald-500) 9%, transparent),
+      transparent 60%
+    );
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+
+  /* Wygodne „przytrzymanie” w aplikacji mobilnej, ale tekst w polach i raportach da się zaznaczyć */
+  button, nav, header {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-emerald-400);
+    outline-offset: 2px;
+    border-radius: 10px;
+  }
+
+  input, textarea, select {
+    font-size: 16px !important;
+  }
 }
 
-.glass-card-interactive {
-  @apply bg-slate-900/60 backdrop-blur-md border border-slate-800/80 shadow-xl hover:bg-slate-900/80 active:scale-[0.98] transition-all duration-200 cursor-pointer;
+/* Karty – matowa powierzchnia z cienką górną krawędzią światła */
+@utility glass-card {
+  @apply bg-slate-900/80 border border-slate-800 backdrop-blur-md;
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, white 4%, transparent),
+    0 12px 32px -16px rgb(0 0 0 / 0.6);
 }
 
-/* Custom scrollbar to look sleek */
+@utility glass-card-interactive {
+  @apply glass-card hover:bg-slate-800/80 hover:border-slate-700 active:scale-[0.985] transition-all duration-200 cursor-pointer;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -38,6 +144,22 @@ body {
 .delay-200 { animation-delay: 200ms; }
 .delay-300 { animation-delay: 300ms; }
 
+/* Wypełnianie pierścienia kalorii przy wejściu na ekran – jedyna automatyczna animacja */
+@keyframes arc-in {
+  from { stroke-dasharray: 0 1000; }
+}
+.arc-in {
+  animation: arc-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Barcode Scanner Overrides to remove visual conflicts */
 #reader__border {
   display: none !important;
@@ -52,8 +174,4 @@ body {
   height: 100% !important;
   object-fit: cover !important;
   border-radius: 24px !important;
-}
-
-input, textarea, select {
-  font-size: 16px !important;
 }

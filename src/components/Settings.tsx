@@ -210,7 +210,7 @@ export const Settings: React.FC = () => {
         {hasBiometricsChanged && (
           <button
             onClick={handleSaveBiometrics}
-            className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl text-sm transition-all active:scale-[0.98] cursor-pointer"
+            className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition-all active:scale-[0.98] cursor-pointer"
           >
             Oblicz i zatwierdź zmiany
           </button>
@@ -272,7 +272,7 @@ export const Settings: React.FC = () => {
           <button
             onClick={handleSaveApiKey}
             className={`w-full py-3 rounded-xl text-xs font-bold transition-all active:scale-[0.98] cursor-pointer ${
-              keySaved ? 'bg-emerald-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+              keySaved ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
             }`}
           >
             {keySaved ? 'Zapisano klucz!' : 'Zapisz klucz API'}
@@ -323,7 +323,7 @@ export const Settings: React.FC = () => {
           </div>
           <button
             onClick={handleAddReminderClick}
-            className="ml-auto bg-emerald-500 hover:bg-emerald-400 text-white font-bold p-2 rounded-lg active:scale-[0.9] transition-all cursor-pointer"
+            className="ml-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold p-2 rounded-lg active:scale-[0.9] transition-all cursor-pointer"
           >
             Dodaj
           </button>

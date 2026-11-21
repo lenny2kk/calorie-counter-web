@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useCalorieTracker, toLocalYYYYMMDD, parseLocalDate } from '../hooks/useCalorieTracker';
 import { fetchDietitianReport } from '../services/dietitian';
-import { Sparkles, ChevronRight, ChevronLeft, Activity, Calendar } from 'lucide-react';
+import { Sparkles, ChevronRight, ChevronLeft, Calendar } from 'lucide-react';
 
 interface DashboardProps {
   onNavigateToMeal: (category: 'breakfast' | 'lunch' | 'dinner' | 'snacks') => void;
@@ -22,7 +22,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
     apiKey,
     selectedDate,
     setSelectedDate,
-    mealsLoading
+    mealsLoading,
+    weight
   } = useCalorieTracker();
 
   const [isLoadingAI, setIsLoadingAI] = useState(false);
@@ -44,39 +45,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
     setSelectedDate(toLocalYYYYMMDD(current));
   };
 
-  // SVG Progress Ring calculations
-  const radius = 70;
-  const circumference = 2 * Math.PI * radius;
-  const progressRatio = Math.min(1, totalEaten / tdee);
-  const strokeDashoffset = circumference - progressRatio * circumference;
-
-  // Decide colors based on mode and intake
-  let ringColor = 'stroke-emerald-500';
-  let centerTextColor = 'text-slate-100';
-  let statusText = 'kcal pozostało';
-
+  // ── Status kalorii ──────────────────────────────────────────────────────
+  const isOver = totalEaten > tdee;
+  const diff = Math.abs(tdee - totalEaten);
+  let statusText: string;
+  let centerTextColor: string;
   if (isStrictLimitMode) {
-    if (totalEaten > tdee) {
-      ringColor = 'stroke-red-500';
-      centerTextColor = 'text-red-400';
-      statusText = 'kcal przekroczono';
-    } else {
-      ringColor = 'stroke-emerald-500';
-      centerTextColor = 'text-emerald-400';
-      statusText = 'kcal pozostało';
-    }
+    statusText = isOver ? 'kcal ponad limit' : 'kcal zostało';
+    centerTextColor = isOver ? 'text-red-400' : 'text-slate-50';
   } else {
-    // Bulking mode
-    if (totalEaten >= tdee) {
-      ringColor = 'stroke-emerald-500';
-      centerTextColor = 'text-emerald-400';
-      statusText = 'kcal nadwyżki';
-    } else {
-      ringColor = 'stroke-amber-500';
-      centerTextColor = 'text-amber-400';
-      statusText = 'kcal do celu';
-    }
+    statusText = totalEaten >= tdee ? 'kcal nadwyżki' : 'kcal do celu';
+    centerTextColor = totalEaten >= tdee ? 'text-emerald-400' : 'text-slate-50';
   }
+
+  // ── Cele makro (orientacyjne, wyliczone z TDEE i masy ciała) ─────────────
+  const proteinGoal = Math.round(weight * (isStrictLimitMode ? 2.0 : 1.8));
+  const fatGoal = Math.round((tdee * 0.27) / 9);
+  const carbsGoal = Math.max(0, Math.round((tdee - proteinGoal * 4 - fatGoal * 9) / 4));
 
   const handleGenerateReport = async () => {
     if (isLoadingAI) return;
@@ -108,28 +93,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
     return dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
   };
 
+  // Każdy posiłek ma własny kolor – ten sam w pierścieniu i na liście
   const mealItems = [
-    { key: 'breakfast' as const, label: '🥣 Śniadanie', entry: meals.breakfast },
-    { key: 'lunch' as const, label: '🥩 Obiad', entry: meals.lunch },
-    { key: 'dinner' as const, label: '🥪 Kolacja', entry: meals.dinner },
-    { key: 'snacks' as const, label: '🍎 Przekąski', entry: meals.snacks },
+    { key: 'breakfast' as const, label: 'Śniadanie', emoji: '🥣', entry: meals.breakfast, stroke: 'stroke-emerald-300', swatch: 'bg-emerald-300' },
+    { key: 'lunch' as const, label: 'Obiad', emoji: '🍲', entry: meals.lunch, stroke: 'stroke-emerald-500', swatch: 'bg-emerald-500' },
+    { key: 'dinner' as const, label: 'Kolacja', emoji: '🥪', entry: meals.dinner, stroke: 'stroke-teal-500', swatch: 'bg-teal-500' },
+    { key: 'snacks' as const, label: 'Przekąski', emoji: '🍎', entry: meals.snacks, stroke: 'stroke-amber-400', swatch: 'bg-amber-400' },
+  ];
+
+  // ── Pierścień „talerz”: segmenty posiłków na tle dziennego celu ───────────
+  const RING_R = 84;
+  const RING_C = 2 * Math.PI * RING_R;
+  const SEG_GAP = 4;
+  const scale = Math.max(tdee, totalEaten, 1);
+  let cursor = 0;
+  const segments = mealItems
+    .filter(m => m.entry.calories > 0)
+    .map(m => {
+      const len = (m.entry.calories / scale) * RING_C;
+      const seg = { key: m.key, stroke: m.stroke, offset: cursor, len: Math.max(0, len - SEG_GAP) };
+      cursor += len;
+      return seg;
+    });
+
+  const macros = [
+    { label: 'Białko', value: totalProtein, goal: proteinGoal, bar: 'bg-sky-400', text: 'text-sky-300' },
+    { label: 'Węglowodany', value: totalCarbs, goal: carbsGoal, bar: 'bg-amber-400', text: 'text-amber-300' },
+    { label: 'Tłuszcze', value: totalFat, goal: fatGoal, bar: 'bg-purple-400', text: 'text-purple-300' },
   ];
 
   return (
-    <div className="space-y-6 pb-20 animate-fade-in">
-      {/* Dynamic Date Selector Stepper */}
-      <div className="flex items-center justify-between bg-slate-900/40 border border-slate-900/80 p-2 rounded-2xl">
+    <div className="space-y-5 pb-20 animate-fade-in">
+      {/* Date stepper */}
+      <div className="flex items-center justify-between">
         <button
           onClick={handlePrevDay}
-          className="p-2 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl transition-all cursor-pointer active:scale-95"
-          title="Poprzedni dzień"
+          className="w-10 h-10 grid place-items-center text-slate-400 hover:text-slate-100 hover:bg-slate-900 rounded-full transition-colors cursor-pointer active:scale-95"
+          aria-label="Poprzedni dzień"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center space-x-2 relative hover:bg-slate-805/50 px-3 py-1.5 rounded-xl transition-all cursor-pointer">
+        <label className="relative flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer">
           <Calendar className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-bold text-slate-300 tracking-wide">
+          <span className="text-sm font-semibold text-slate-200">
             {selectedDate === todayStr ? 'Dzisiaj' : getFormattedDate(selectedDate)}
           </span>
           <input
@@ -137,112 +144,146 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
             max={todayStr}
             value={selectedDate}
             onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
-            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-base"
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            aria-label="Wybierz dzień"
           />
-        </div>
+        </label>
 
         <button
           onClick={handleNextDay}
           disabled={selectedDate === todayStr}
-          className="p-2 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-xl transition-all cursor-pointer active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed"
-          title="Następny dzień"
+          className="w-10 h-10 grid place-items-center text-slate-400 hover:text-slate-100 hover:bg-slate-900 rounded-full transition-colors cursor-pointer active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          aria-label="Następny dzień"
         >
           <ChevronRight className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Calories Radial Summary Card */}
-      <div className="glass-card rounded-3xl p-6 flex flex-col items-center relative overflow-hidden min-h-[260px] justify-center">
-        <div className="absolute top-0 right-0 p-4 opacity-5">
-          <Activity className="w-24 h-24 text-slate-100" />
-        </div>
-
+      {/* Hero: talerz kalorii + makro */}
+      <section className="glass-card rounded-[28px] p-5 pt-6">
         {mealsLoading ? (
-          <div className="w-44 h-44 flex flex-col items-center justify-center space-y-3">
-            <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Ładowanie posiłków...</span>
+          <div className="h-[300px] flex flex-col items-center justify-center gap-3">
+            <div className="w-8 h-8 border-[3px] border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs text-slate-500 font-medium">Ładowanie posiłków…</span>
           </div>
         ) : (
           <>
-            <div className="relative w-44 h-44 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90">
-                {/* Background Ring */}
+            <div className="relative w-56 h-56 mx-auto">
+              <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90" aria-hidden="true">
                 <circle
-                  cx="88"
-                  cy="88"
-                  r={radius}
-                  className="stroke-slate-800"
-                  strokeWidth="12"
-                  fill="transparent"
+                  cx="100" cy="100" r={RING_R}
+                  fill="none" strokeWidth="18"
+                  className={isStrictLimitMode && isOver ? 'stroke-red-500/25' : 'stroke-slate-800'}
                 />
-                {/* Foreground Ring */}
-                <circle
-                  cx="88"
-                  cy="88"
-                  r={radius}
-                  className={`transition-all duration-500 ease-out ${ringColor}`}
-                  strokeWidth="12"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={strokeDashoffset}
-                  strokeLinecap="round"
-                  fill="transparent"
-                />
+                {segments.map(seg => (
+                  <circle
+                    key={seg.key}
+                    cx="100" cy="100" r={RING_R}
+                    fill="none" strokeWidth="18"
+                    className={`arc-in ${seg.stroke}`}
+                    strokeDasharray={`${seg.len} ${RING_C}`}
+                    strokeDashoffset={-seg.offset}
+                  />
+                ))}
               </svg>
 
-              {/* Center Text */}
-              <div className="absolute flex flex-col items-center text-center">
-                <span className={`text-4xl font-extrabold tracking-tight ${centerTextColor}`}>
-                  {isStrictLimitMode
-                    ? (totalEaten > tdee ? totalEaten - tdee : tdee - totalEaten)
-                    : (totalEaten >= tdee ? totalEaten - tdee : tdee - totalEaten)
-                  }
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className={`font-display text-[52px] leading-none font-extrabold tracking-tight ${centerTextColor}`}>
+                  {diff}
                 </span>
-                <span className="text-slate-400 text-xs font-semibold mt-0.5">{statusText}</span>
+                <span className="text-slate-400 text-sm font-medium mt-1.5">{statusText}</span>
               </div>
             </div>
 
-            {/* Info label about total eaten / target */}
-            <div className="mt-4 flex space-x-4 text-sm font-semibold text-slate-400">
-              <div>Zjedzone: <span className="text-slate-200">{totalEaten} kcal</span></div>
-              <div className="text-slate-700">|</div>
-              <div>Cel TDEE: <span className="text-slate-200">{tdee} kcal</span></div>
+            <dl className="mt-4 grid grid-cols-2 text-center">
+              <div>
+                <dt className="text-xs text-slate-500">Zjedzone</dt>
+                <dd className="font-display text-lg font-bold text-slate-100">{totalEaten} <span className="text-xs font-medium text-slate-500">kcal</span></dd>
+              </div>
+              <div className="border-l border-slate-800">
+                <dt className="text-xs text-slate-500">{isStrictLimitMode ? 'Limit dzienny' : 'Cel dzienny'}</dt>
+                <dd className="font-display text-lg font-bold text-slate-100">{tdee} <span className="text-xs font-medium text-slate-500">kcal</span></dd>
+              </div>
+            </dl>
+
+            <div className="mt-5 pt-5 border-t border-slate-800 space-y-3.5">
+              {macros.map(m => {
+                const pct = m.goal > 0 ? Math.min(100, (m.value / m.goal) * 100) : 0;
+                return (
+                  <div key={m.label}>
+                    <div className="flex items-baseline justify-between text-sm">
+                      <span className="text-slate-300 font-medium">{m.label}</span>
+                      <span className="text-slate-500">
+                        <span className={`font-bold ${m.text}`}>{Math.round(m.value)}</span> / {m.goal} g
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-2 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${m.bar} transition-[width] duration-500 ease-out`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="text-[11px] text-slate-500 pt-0.5">
+                Cele makro są orientacyjne – wyliczone z Twojego TDEE i masy ciała ({weight} kg).
+              </p>
             </div>
           </>
         )}
-      </div>
+      </section>
 
-      {/* Macro Indicators */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="glass-card rounded-2xl p-4 text-center">
-          <span className="block text-xs font-medium text-slate-400">Białko</span>
-          <span className="block text-lg font-bold text-blue-400 mt-1">{totalProtein.toFixed(1)}g</span>
+      {/* Meals */}
+      <section className="space-y-2.5">
+        <h2 className="text-lg font-bold text-slate-100 px-1">Posiłki</h2>
+        <div className="glass-card rounded-3xl divide-y divide-slate-800 overflow-hidden">
+          {mealItems.map(({ key, label, emoji, entry, swatch }) => (
+            <button
+              key={key}
+              onClick={() => onNavigateToMeal(key)}
+              className="w-full flex items-center gap-3.5 px-4 py-3.5 text-left hover:bg-slate-800/50 active:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <span className="relative w-11 h-11 shrink-0 grid place-items-center rounded-2xl bg-slate-800 text-xl">
+                {emoji}
+                <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-900 ${swatch} ${entry.calories > 0 ? '' : 'opacity-30'}`} />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block font-semibold text-slate-100">{label}</span>
+                <span className="flex gap-2.5 text-xs text-slate-500 mt-0.5 truncate">
+                  {entry.calories > 0 ? (
+                    <>
+                      <span>B {Math.round(entry.protein)} g</span>
+                      <span>W {Math.round(entry.carbs)} g</span>
+                      <span>T {Math.round(entry.fat)} g</span>
+                    </>
+                  ) : 'Dodaj pierwszy produkt'}
+                </span>
+              </span>
+              <span className="font-display font-bold text-slate-200 tabular-nums">
+                {entry.calories}
+                <span className="text-xs font-medium text-slate-500 ml-1">kcal</span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-slate-600 shrink-0" />
+            </button>
+          ))}
         </div>
-        <div className="glass-card rounded-2xl p-4 text-center">
-          <span className="block text-xs font-medium text-slate-400">Węgle</span>
-          <span className="block text-lg font-bold text-amber-500 mt-1">{totalCarbs.toFixed(1)}g</span>
-        </div>
-        <div className="glass-card rounded-2xl p-4 text-center">
-          <span className="block text-xs font-medium text-slate-400">Tłuszcze</span>
-          <span className="block text-lg font-bold text-purple-400 mt-1">{totalFat.toFixed(1)}g</span>
-        </div>
-      </div>
+      </section>
 
-      {/* AI Dietitian Card */}
-      <div className="relative overflow-hidden glass-card rounded-2xl p-5 border border-purple-500/20 shadow-purple-500/5">
-        <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-bl-full pointer-events-none" />
-        
-        <div className="flex items-center space-x-2 text-purple-400 font-bold mb-2">
+      {/* AI Dietitian */}
+      <section className="relative overflow-hidden rounded-3xl p-5 border border-purple-400/20 bg-gradient-to-br from-purple-500/[0.12] via-slate-900/80 to-slate-900/80">
+        <div className="flex items-center gap-2 text-purple-300 mb-2">
           <Sparkles className="w-5 h-5" />
-          <h3 className="text-sm uppercase tracking-wider">Dietetyk AI</h3>
+          <h2 className="text-base font-bold">Dietetyk AI</h2>
           {isLoadingAI && (
-            <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin ml-2" />
+            <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin ml-1" />
           )}
         </div>
 
-        <p className="text-slate-300 text-sm mb-4 leading-relaxed min-h-[40px]">
+        <p className="text-slate-300 text-sm mb-4 leading-relaxed">
           {latestReport
             ? latestReport?.fullAnalysis?.statusSummary || 'Brak podsumowania'
-            : 'Zaloguj posiłki, aby otrzymać spersonalizowaną wieczorną analizę i wskazówki od Twojego Dietetyka AI.'
+            : 'Zapisz posiłki z dzisiaj, a Dietetyk AI oceni bilans dnia i podpowie, co zjeść jutro.'
           }
         </p>
 
@@ -253,37 +294,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
         <button
           onClick={latestReport ? onOpenDietitianReport : handleGenerateReport}
           disabled={isLoadingAI}
-          className="w-full flex items-center justify-between bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm py-3 px-4 rounded-xl active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
+          className="w-full flex items-center justify-between bg-purple-500 hover:bg-purple-400 text-white font-bold text-sm py-3 px-4 rounded-2xl active:scale-[0.99] transition-colors disabled:opacity-50 cursor-pointer"
         >
-          <span>{latestReport ? 'Otwórz wieczorny raport' : 'Generuj analizę'}</span>
+          <span>{latestReport ? 'Otwórz raport' : 'Generuj analizę dnia'}</span>
           <ChevronRight className="w-4 h-4" />
         </button>
-      </div>
-
-      {/* Meals Navigation List */}
-      <div className="space-y-3">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">Posiłki</h3>
-        <div className="space-y-2.5">
-          {mealItems.map(({ key, label, entry }) => (
-            <div
-              key={key}
-              onClick={() => onNavigateToMeal(key)}
-              className="glass-card-interactive rounded-2xl p-4 flex items-center justify-between"
-            >
-              <div>
-                <h4 className="font-bold text-slate-200">{label}</h4>
-                <p className="text-xs text-slate-400 mt-1">
-                  B: {Math.round(entry.protein)}g  |  W: {Math.round(entry.carbs)}g  |  T: {Math.round(entry.fat)}g
-                </p>
-              </div>
-              <div className="flex items-center space-x-3">
-                <span className="font-semibold text-slate-300">{entry.calories} kcal</span>
-                <ChevronRight className="w-4 h-4 text-slate-500" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      </section>
     </div>
   );
 };

@@ -160,7 +160,7 @@ export const Onboarding: React.FC = () => {
           <button
             type="submit"
             disabled={!isFormValid}
-            className={`w-full py-4 rounded-xl text-center font-semibold text-white shadow-lg shadow-emerald-500/10 transition-all flex items-center justify-center space-x-2 ${
+            className={`w-full py-4 rounded-xl text-center font-bold text-slate-950 shadow-lg shadow-emerald-500/10 transition-all flex items-center justify-center space-x-2 ${
               isFormValid
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90 active:scale-[0.99] cursor-pointer'
                 : 'bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed'

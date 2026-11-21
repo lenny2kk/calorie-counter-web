@@ -148,7 +148,7 @@ export const Auth: React.FC = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className={`w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center space-x-2 active:scale-[0.99] cursor-pointer ${
+            className={`w-full py-3.5 rounded-xl font-bold text-slate-950 shadow-lg transition-all flex items-center justify-center space-x-2 active:scale-[0.99] cursor-pointer ${
               isLoading
                 ? 'bg-slate-800 border border-slate-700 text-slate-500'
                 : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/10'
