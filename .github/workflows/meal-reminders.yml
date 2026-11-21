@@ -1,0 +1,28 @@
+# Co ~10 minut wywołuje funkcję Vercela, która wysyła przypomnienia o posiłkach.
+# Wymaga sekretu repozytorium CRON_SECRET (ta sama wartość co zmienna CRON_SECRET na Vercelu).
+# Uwaga: GitHub może opóźniać zaplanowane uruchomienia o kilka minut – serwer to uwzględnia.
+name: Przypomnienia o posiłkach
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Wyślij zaległe przypomnienia
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Brak sekretu CRON_SECRET – pomijam (powiadomienia nie są jeszcze skonfigurowane)."
+            exit 0
+          fi
+          curl --fail-with-body -sS --max-time 60 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://calorie-counter-web.vercel.app/api/send-reminders

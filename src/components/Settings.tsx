@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCalorieTracker, computeTdee, toLocalYYYYMMDD } from '../hooks/useCalorieTracker';
+import { getPushSupport, isPushEnabledHere, enablePush, disablePush, sendTestPush } from '../services/push';
+import type { PushSupport } from '../services/push';
 import { Settings as SettingsIcon, Bell, Shield, Key, Database, RefreshCw, Trash2, LogOut } from 'lucide-react';
 
 export const Settings: React.FC = () => {
@@ -91,27 +93,48 @@ export const Settings: React.FC = () => {
   // Reminders states
   const [reminderHour, setReminderHour] = useState('08');
   const [reminderMinute, setReminderMinute] = useState('00');
-  const [notificationsAuthorized, setNotificationsAuthorized] = useState(false);
+  // Push notifications state
+  const [pushSupport, setPushSupport] = useState<PushSupport | null>(null);
+  const [pushEnabled, setPushEnabled] = useState(isPushEnabledHere());
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMessage, setPushMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    if ('Notification' in window) {
-      setNotificationsAuthorized(Notification.permission === 'granted');
-    }
+    getPushSupport().then(setPushSupport);
   }, []);
 
-  const requestNotificationPermission = () => {
-    if (!('Notification' in window)) {
-      alert('Powiadomienia nie są obsługiwane przez Twoją przeglądarkę.');
-      return;
-    }
-    Notification.requestPermission().then((permission) => {
-      setNotificationsAuthorized(permission === 'granted');
-      if (permission === 'granted') {
-        new Notification('CalorieCounter', {
-          body: 'Powiadomienia zostały włączone!',
-        });
+  const handleTogglePush = async () => {
+    if (!user) return;
+    setPushBusy(true);
+    setPushMessage(null);
+    try {
+      if (pushEnabled) {
+        await disablePush(user.uid);
+        setPushEnabled(false);
+      } else {
+        await enablePush(user.uid);
+        setPushEnabled(true);
+        setPushMessage({ kind: 'ok', text: 'Powiadomienia włączone na tym urządzeniu.' });
       }
-    });
+    } catch (err) {
+      setPushMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Nie udało się zmienić ustawień powiadomień.' });
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const handleTestPush = async () => {
+    if (!user) return;
+    setPushBusy(true);
+    setPushMessage(null);
+    try {
+      const sent = await sendTestPush(await user.getIdToken());
+      setPushMessage({ kind: 'ok', text: sent > 0 ? `Wysłano testowe powiadomienie (urządzenia: ${sent}).` : 'Brak zarejestrowanych urządzeń.' });
+    } catch (err) {
+      setPushMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Nie udało się wysłać testu.' });
+    } finally {
+      setPushBusy(false);
+    }
   };
 
   const handleAddReminderClick = () => {
@@ -337,13 +360,52 @@ export const Settings: React.FC = () => {
           <span>Przypomnienia o posiłkach</span>
         </h3>
 
-        {!notificationsAuthorized && (
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Przypomnienia przychodzą o wybranych godzinach także przy zamkniętej aplikacji (z opóźnieniem do ok. 10 minut). Każde urządzenie włączasz osobno.
+        </p>
+
+        {pushSupport === 'needs-install' && (
+          <div className="text-xs text-slate-300 bg-slate-950/60 border border-slate-800 rounded-xl p-3 leading-relaxed">
+            Na iPhonie powiadomienia działają tylko w aplikacji dodanej do ekranu początkowego: w Safari stuknij <b>Udostępnij</b> → <b>Do ekranu początkowego</b>, a potem otwórz CalorieCounter z ikony i włącz powiadomienia tutaj.
+          </div>
+        )}
+        {pushSupport === 'unsupported' && (
+          <p className="text-xs text-amber-300">Ta przeglądarka nie obsługuje powiadomień push.</p>
+        )}
+        {pushSupport === 'not-configured' && (
+          <p className="text-xs text-amber-300">Powiadomienia push nie są jeszcze skonfigurowane na serwerze.</p>
+        )}
+
+        {pushSupport === 'supported' && (
+          <div className="flex items-center justify-between gap-3 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3">
+            <span className="text-sm text-slate-200 font-medium">Powiadomienia na tym urządzeniu</span>
+            <button
+              onClick={handleTogglePush}
+              disabled={pushBusy}
+              role="switch"
+              aria-checked={pushEnabled}
+              aria-label="Powiadomienia na tym urządzeniu"
+              className={`w-11 h-6 shrink-0 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer disabled:opacity-50 ${pushEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+            >
+              <span className={`w-5 h-5 rounded-full bg-white shadow-md transition-transform ${pushEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+        )}
+
+        {pushSupport === 'supported' && pushEnabled && (
           <button
-            onClick={requestNotificationPermission}
-            className="w-full py-2.5 text-center text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-500/20 cursor-pointer"
+            onClick={handleTestPush}
+            disabled={pushBusy}
+            className="w-full py-2.5 text-center text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-xl hover:bg-emerald-500/20 cursor-pointer disabled:opacity-50"
           >
-            Włącz powiadomienia w przeglądarce
+            Wyślij testowe powiadomienie
           </button>
+        )}
+
+        {pushMessage && (
+          <p role="status" className={`text-xs font-semibold ${pushMessage.kind === 'ok' ? 'text-emerald-300' : 'text-red-400'}`}>
+            {pushMessage.text}
+          </p>
         )}
 
         <div className="flex items-center space-x-3 text-xs bg-slate-950 border border-slate-900 rounded-xl p-2.5">

@@ -4,7 +4,6 @@ import { CalorieTrackerProvider } from './hooks/useCalorieTracker';
 import { Onboarding } from './components/Onboarding';
 import { Dashboard } from './components/Dashboard';
 import { MealCategory } from './components/MealCategory';
-import { Settings } from './components/Settings';
 import { DietitianReportModal } from './components/DietitianReportModal';
 import { AISmartMealModal } from './components/AISmartMealModal';
 import { Auth } from './components/Auth';
@@ -21,6 +20,7 @@ import {
 const ProductSearch = lazy(() => import('./components/ProductSearch').then(m => ({ default: m.ProductSearch })));
 const Gym = lazy(() => import('./components/Gym').then(m => ({ default: m.Gym })));
 const Statistics = lazy(() => import('./components/Statistics').then(m => ({ default: m.Statistics })));
+const Settings = lazy(() => import('./components/Settings').then(m => ({ default: m.Settings })));
 
 const ScreenFallback = () => (
   <div className="py-24 grid place-items-center">

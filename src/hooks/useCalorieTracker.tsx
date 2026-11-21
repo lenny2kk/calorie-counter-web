@@ -674,13 +674,16 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
   const deleteAllUserData = async () => {
     if (!user || !db) return;
     const uid = user.uid;
-    const [mealsSnap, workoutsSnap] = await Promise.all([
+    const [mealsSnap, workoutsSnap, pushSnap] = await Promise.all([
       getDocs(collection(db, 'users', uid, 'meals')),
       getDocs(collection(db, 'users', uid, 'workouts')),
+      getDocs(collection(db, 'users', uid, 'pushTokens')),
     ]);
     const refs = [
       ...mealsSnap.docs.map(d => d.ref),
       ...workoutsSnap.docs.map(d => d.ref),
+      ...pushSnap.docs.map(d => d.ref),
+      doc(db, 'users', uid, 'private', 'push'),
       doc(db, 'users', uid, 'statistics', 'data'),
       doc(db, 'users', uid, 'profile', 'data'),
     ];

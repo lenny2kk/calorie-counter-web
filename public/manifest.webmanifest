@@ -1,0 +1,17 @@
+{
+  "name": "CalorieCounter – dziennik kalorii",
+  "short_name": "CalorieCounter",
+  "description": "Dziennik kalorii i makroskładników z Dietetykiem AI, dziennikiem wagi i treningów.",
+  "lang": "pl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#15111b",
+  "theme_color": "#15111b",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
