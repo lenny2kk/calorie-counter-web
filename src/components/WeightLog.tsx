@@ -9,6 +9,7 @@ import {
   MAX_BODY_WEIGHT,
 } from '../hooks/useCalorieTracker';
 import type { WeightEntry } from '../types';
+import { weeklyWeightPace, DAY_MS } from '../utils/nutrition';
 
 // Kolory wykresu – wartości z palety motywu (SVG nie czyta zmiennych CSS w atrybutach)
 const C = {
@@ -26,7 +27,6 @@ const RANGES: { id: RangeId; label: string; days: number | null }[] = [
   { id: 'all', label: 'Wszystko', days: null },
 ];
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const ts = (date: string) => parseLocalDate(date).getTime();
 const fmtKg = (v: number, digits = 1) => v.toFixed(digits).replace('.', ',');
 const fmtSigned = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmtKg(Math.abs(v))}`;
@@ -48,19 +48,6 @@ const withTrend = (log: WeightEntry[]) =>
     const avg = window.reduce((s, x) => s + x.weight, 0) / window.length;
     return { t: end, date: e.date, weight: e.weight, trend: Math.round(avg * 10) / 10 };
   });
-
-/** Tempo zmian w kg/tydzień – nachylenie prostej dopasowanej do pomiarów z ostatnich 30 dni. */
-const weeklyPace = (log: WeightEntry[]): number | null => {
-  if (log.length < 2) return null;
-  const lastT = ts(log[log.length - 1].date);
-  const pts = log.filter((e) => ts(e.date) >= lastT - 30 * DAY_MS).map((e) => ({ x: ts(e.date) / DAY_MS, y: e.weight }));
-  if (pts.length < 2 || pts[pts.length - 1].x - pts[0].x < 7) return null;
-  const mx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-  const my = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-  const num = pts.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0);
-  const den = pts.reduce((s, p) => s + (p.x - mx) ** 2, 0);
-  return den === 0 ? null : (num / den) * 7;
-};
 
 export const WeightLog: React.FC = () => {
   const { weightLog, weight: profileWeight, isStrictLimitMode, addWeightEntry, deleteWeightEntry } = useCalorieTracker();
@@ -84,7 +71,7 @@ export const WeightLog: React.FC = () => {
     return all.filter((p) => p.t >= from);
   }, [weightLog, range, todayStr]);
 
-  const pace = useMemo(() => weeklyPace(weightLog), [weightLog]);
+  const pace = useMemo(() => weeklyWeightPace(weightLog), [weightLog]);
   const rangeChange = chartData.length >= 2 ? chartData[chartData.length - 1].weight - chartData[0].weight : null;
 
   const yDomain = useMemo(() => {

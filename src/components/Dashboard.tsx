@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useCalorieTracker, toLocalYYYYMMDD, parseLocalDate } from '../hooks/useCalorieTracker';
-import { fetchDietitianReport } from '../services/dietitian';
+import { useDietitianReport } from '../hooks/useDietitianReport';
+import { computeMacroGoals } from '../utils/nutrition';
 import { Sparkles, ChevronRight, ChevronLeft, Calendar } from 'lucide-react';
 
 interface DashboardProps {
@@ -18,16 +19,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
     totalCarbs,
     totalFat,
     latestReport,
-    setLatestReport,
-    apiKey,
     selectedDate,
     setSelectedDate,
     mealsLoading,
     weight
   } = useCalorieTracker();
 
-  const [isLoadingAI, setIsLoadingAI] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
+  const { generate: generateReport, isLoading: isLoadingAI, error: aiError } = useDietitianReport();
 
   const todayStr = toLocalYYYYMMDD(new Date());
 
@@ -59,31 +57,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigateToMeal, onOpenDi
   }
 
   // ── Cele makro (orientacyjne, wyliczone z TDEE i masy ciała) ─────────────
-  const proteinGoal = Math.round(weight * (isStrictLimitMode ? 2.0 : 1.8));
-  const fatGoal = Math.round((tdee * 0.27) / 9);
-  const carbsGoal = Math.max(0, Math.round((tdee - proteinGoal * 4 - fatGoal * 9) / 4));
+  const { protein: proteinGoal, carbs: carbsGoal, fat: fatGoal } = computeMacroGoals(tdee, weight, isStrictLimitMode);
 
   const handleGenerateReport = async () => {
-    if (isLoadingAI) return;
-    setIsLoadingAI(true);
-    setAiError(null);
-    try {
-      const report = await fetchDietitianReport({
-        apiKey,
-        totalCalories: totalEaten,
-        totalProtein,
-        totalCarbs,
-        totalFat,
-        tdee,
-        isStrictLimitMode
-      });
-      setLatestReport(report);
-      onOpenDietitianReport();
-    } catch (err: any) {
-      setAiError(err.message || 'Wystąpił błąd podczas generowania raportu.');
-    } finally {
-      setIsLoadingAI(false);
-    }
+    if (await generateReport()) onOpenDietitianReport();
   };
 
   const getFormattedDate = (dateString: string) => {

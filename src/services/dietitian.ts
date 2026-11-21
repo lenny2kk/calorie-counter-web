@@ -1,4 +1,6 @@
 import type { DietitianReport } from '../types';
+import { formatContextForPrompt } from './dietitianContext';
+import type { DietitianContext } from './dietitianContext';
 import { FirebaseError } from 'firebase/app';
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
@@ -18,53 +20,50 @@ function cleanJsonResponse(text: string): string {
 
 export async function fetchDietitianReport(params: {
   apiKey: string;
-  totalCalories: number;
-  totalProtein: number;
-  totalCarbs: number;
-  totalFat: number;
-  tdee: number;
-  isStrictLimitMode: boolean;
+  context: DietitianContext;
 }): Promise<DietitianReport> {
-  const { apiKey, totalCalories, totalProtein, totalCarbs, totalFat, tdee, isStrictLimitMode } = params;
+  const { apiKey, context } = params;
 
   if (!apiKey) {
     throw new Error('Brak klucza API Gemini! Skonfiguruj go w Ustawieniach.');
   }
 
-  const prompt = `Jesteś rygorystycznym, ale motywującym Dietetykiem AI oraz ekspertem UX w aplikacji do liczenia kalorii. Twoim zadaniem jest przeanalizowanie dotychczasowego spożycia kalorii i makroskładników użytkownika z danego dnia (stan na godzinę 18:00) w odniesieniu do jego celów dobowych i wygenerowanie raportu.
+  const timeRule = context.isToday
+    ? `Jest godzina ${context.time} i dzień jeszcze trwa. Dopasuj porady do pory dnia: rano/w południe planuj resztę dnia, wieczorem skup się na ostatnim posiłku.`
+    : 'Analizowany dzień jest zakończony – oceń go całościowo i daj wskazówkę na kolejny dzień.';
+
+  const prompt = `Jesteś rygorystycznym, ale motywującym Dietetykiem AI w aplikacji do liczenia kalorii. Przeanalizuj dzień użytkownika NA TLE ostatniego tygodnia, trendu wagi i treningów, a potem wygeneruj raport.
 
 Zawsze zwracaj odpowiedź wyłącznie w formacie JSON o poniższej strukturze:
 {
   "push_notification": {
     "title": "Krótki, angażujący tytuł push (max 40 znaków)",
-    "body": "Jedno konkretne, dynamiczne zdanie podsumowujące status lub dające radę na wieczór (max 90 znaków). Musi intrygować, by użytkownik kliknął."
+    "body": "Jedno konkretne zdanie podsumowujące status lub dające radę (max 90 znaków)."
   },
   "full_analysis": {
-    "status_summary": "Krótkie podsumowanie obecnego stanu (np. 'Świetny balans białka, ale uważaj na tłuszcze').",
-    "calories_remaining": "Informacja o pozostałych kaloriach (lub przekroczeniu) i krótki komentarz.",
+    "status_summary": "1–2 zdania: jak wypada ten dzień i czy pasuje do wzorca z tygodnia.",
+    "calories_remaining": "Ile kalorii zostało (lub o ile przekroczono) i krótki komentarz.",
     "macro_critique": {
-      "protein": "Krytyczna ocena spożycia białka w tym dniu.",
-      "carbs": "Krytyczna ocena spożycia węglowodanów w tym dniu.",
-      "fat": "Krytyczna ocena spożycia tłuszczów w tym dniu."
+      "protein": "Ocena białka w tym dniu, z odniesieniem do celu i średniej z tygodnia.",
+      "carbs": "Ocena węglowodanów w tym dniu.",
+      "fat": "Ocena tłuszczów w tym dniu."
     },
-    "actionable_advice": "Konkretna, spersonalizowana wskazówka na resztę wieczoru. Jeśli zostało mało kalorii, zaproponuj lekką przekąskę. Jeśli brakuje białka, wskaż np. twaróg lub odżywkę. Bądź precyzyjny."
+    "weekly_insight": "2–3 zdania o trendach: średnie z 7 dni, powtarzające się problemy, tempo zmian wagi względem celu (zdrowe tempo redukcji to ok. 0,25–1% masy ciała na tydzień; na masie ok. 0,1–0,5 kg/tydz.), wpływ treningów na zapotrzebowanie. Jeśli brakuje danych, napisz wprost, czego brakuje (np. pomiarów wagi).",
+    "actionable_advice": "Jedna konkretna, spersonalizowana wskazówka na resztę dnia lub jutro (np. konkretna przekąska bogata w białko). Bądź precyzyjny."
   }
 }
 
-Zasady zachowania i stylu AI:
-1. Bądź bezpośredni i konstruktywny. Jeśli użytkownik przekroczył tłuszcze o 18:00, powiedz mu to wprost, ale zaproponuj jak uratować resztę dnia (np. chuda kolacja).
-2. Używaj języka korzyści i motywacji, unikaj oceniania i zawstydzania.
-3. Dopasowuj porady do godziny 18:00 – użytkownik ma przed sobą zazwyczaj już tylko jeden posiłek (kolację).
-4. Nigdy nie przekraczaj limitu znaków w sekcji 'push_notification' (title max 40 znaków, body max 90 znaków).
-5. Odpowiedz wyłącznie surowym formatem JSON, bez żadnego markdownu (nie używaj \`\`\`json), spacji i komentarzy.
+Zasady:
+1. Opieraj się wyłącznie na podanych liczbach – nie wymyślaj danych, których nie ma.
+2. Bądź bezpośredni i konstruktywny, używaj języka korzyści, bez zawstydzania.
+3. Jeśli tempo zmian wagi jest za szybkie, za wolne lub w złą stronę względem celu – powiedz to i zaproponuj korektę kalorii o konkretną liczbę kcal.
+4. Jeśli są dni treningowe, uwzględnij większe zapotrzebowanie na białko i regenerację.
+5. ${timeRule}
+6. Nigdy nie przekraczaj limitów znaków w sekcji 'push_notification'.
+7. Odpowiedz wyłącznie surowym JSON-em, bez markdownu i komentarzy.
 
-Dane użytkownika z dzisiejszego dnia (stan na 18:00):
-- Cel kaloryczny (TDEE): ${tdee} kcal
-- Tryb limitu: ${isStrictLimitMode ? "Pilnowanie limitu (Redukcja)" : "Budowanie masy (Nadwyżka)"}
-- Spożyte kalorie: ${totalCalories} kcal
-- Spożyte białko: ${totalProtein} g
-- Spożyte węglowodany: ${totalCarbs} g
-- Spożyte tłuszcze: ${totalFat} g`;
+DANE UŻYTKOWNIKA:
+${formatContextForPrompt(context)}`;
 
   const response = await fetch(BASE_URL, {
     method: 'POST',
@@ -115,7 +114,9 @@ Dane użytkownika z dzisiejszego dnia (stan na 18:00):
           fat: parsed?.full_analysis?.macro_critique?.fat || parsed?.fullAnalysis?.macroCritique?.fat || '',
         },
         actionableAdvice: parsed?.full_analysis?.actionable_advice || parsed?.fullAnalysis?.actionableAdvice || '',
-      }
+        weeklyInsight: parsed?.full_analysis?.weekly_insight || parsed?.fullAnalysis?.weeklyInsight || '',
+      },
+      generatedAt: new Date().toISOString(),
     };
     return report;
   } catch (err) {

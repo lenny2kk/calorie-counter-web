@@ -20,6 +20,9 @@ export interface HistoricalDay {
   id: string;
   date: string; // ISO string format
   caloriesEaten: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
 }
 
 export interface WorkoutSet {
@@ -48,7 +51,11 @@ export interface DietitianReport {
       fat: string;
     };
     actionableAdvice: string;
+    /** Komentarz do trendów z ostatnich 7 dni i wagi (nowsze raporty). */
+    weeklyInsight?: string;
   };
+  /** Kiedy raport wygenerowano (ISO) – nowsze raporty. */
+  generatedAt?: string;
 }
 
 export interface ReminderTime {

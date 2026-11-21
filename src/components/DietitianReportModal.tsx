@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useCalorieTracker } from '../hooks/useCalorieTracker';
-import { fetchDietitianReport } from '../services/dietitian';
-import { Sparkles, Flame, RefreshCw, X, Award } from 'lucide-react';
+import { useDietitianReport } from '../hooks/useDietitianReport';
+import { Sparkles, Flame, RefreshCw, X, Award, TrendingUp } from 'lucide-react';
 
 interface DietitianReportModalProps {
   isOpen: boolean;
@@ -9,43 +9,16 @@ interface DietitianReportModalProps {
 }
 
 export const DietitianReportModal: React.FC<DietitianReportModalProps> = ({ isOpen, onClose }) => {
-  const {
-    latestReport,
-    setLatestReport,
-    totalEaten,
-    totalProtein,
-    totalCarbs,
-    totalFat,
-    tdee,
-    isStrictLimitMode,
-    apiKey
-  } = useCalorieTracker();
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { latestReport } = useCalorieTracker();
+  const { generate, isLoading, error } = useDietitianReport();
 
   if (!isOpen) return null;
 
-  const handleRefresh = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const report = await fetchDietitianReport({
-        apiKey,
-        totalCalories: totalEaten,
-        totalProtein,
-        totalCarbs,
-        totalFat,
-        tdee,
-        isStrictLimitMode
-      });
-      setLatestReport(report);
-    } catch (err: any) {
-      setError(err.message || 'Błąd odświeżania raportu.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const handleRefresh = () => { generate(); };
+
+  const generatedLabel = latestReport?.generatedAt
+    ? `Wygenerowano ${new Date(latestReport.generatedAt).toLocaleString('pl-PL', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}`
+    : 'Analiza dnia na tle ostatniego tygodnia';
 
   return (
     <div className="fixed inset-0 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm z-50 animate-fade-in overflow-y-auto">
@@ -66,7 +39,7 @@ export const DietitianReportModal: React.FC<DietitianReportModalProps> = ({ isOp
             <div className="absolute inset-0 rounded-full border border-purple-500/20 animate-ping opacity-25" />
           </div>
           <h2 className="text-xl font-black text-slate-100">Raport Dietetyka AI</h2>
-          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Stan na godzinę 18:00</span>
+          <span className="text-xs text-slate-500">{generatedLabel}</span>
         </div>
 
         {/* Loading Indicator overlay */}
@@ -96,6 +69,19 @@ export const DietitianReportModal: React.FC<DietitianReportModalProps> = ({ isOp
                 <p className="text-sm font-semibold text-slate-200 leading-normal">{latestReport?.fullAnalysis?.caloriesRemaining || 'Brak danych'}</p>
               </div>
             </div>
+
+            {/* Weekly insight */}
+            {latestReport?.fullAnalysis?.weeklyInsight && (
+              <div className="bg-slate-950/40 border border-emerald-500/20 p-4 rounded-2xl flex items-start space-x-3">
+                <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl mt-0.5">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="block text-xs font-bold text-emerald-300 mb-0.5">Tydzień i trend wagi</span>
+                  <p className="text-sm text-slate-200 leading-relaxed">{latestReport.fullAnalysis.weeklyInsight}</p>
+                </div>
+              </div>
+            )}
 
             {/* Macros Critique */}
             <div className="bg-slate-950/40 border border-slate-950 rounded-2xl p-4 space-y-4">
@@ -137,7 +123,7 @@ export const DietitianReportModal: React.FC<DietitianReportModalProps> = ({ isOp
             <div className="bg-gradient-to-r from-purple-900/10 to-indigo-900/10 border border-purple-500/20 p-4 rounded-2xl space-y-1">
               <div className="flex items-center space-x-1.5 text-amber-400 font-bold text-xs">
                 <Award className="w-4 h-4" />
-                <span>Wskazówka na wieczór</span>
+                <span>Wskazówka</span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">{latestReport?.fullAnalysis?.actionableAdvice || 'Brak danych'}</p>
             </div>

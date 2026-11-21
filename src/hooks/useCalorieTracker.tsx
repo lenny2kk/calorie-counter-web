@@ -328,10 +328,16 @@ export const CalorieTrackerProvider: React.FC<{ children: React.ReactNode }> = (
         const dateObj = new Date(yr, mo - 1, dy, 12, 0, 0);
         const isoDate = dateObj.toISOString();
 
+        const sumMacro = (key: 'protein' | 'carbs' | 'fat') =>
+          ['breakfast', 'lunch', 'dinner', 'snacks'].reduce((acc, m) => acc + (Number(data[m]?.[key]) || 0), 0);
+
         days.push({
           id: docSnap.id,
           date: isoDate,
-          caloriesEaten: total
+          caloriesEaten: total,
+          protein: sumMacro('protein'),
+          carbs: sumMacro('carbs'),
+          fat: sumMacro('fat'),
         });
       });
       setHistoricalDays(days);
