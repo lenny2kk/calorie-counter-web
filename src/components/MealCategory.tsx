@@ -1,12 +1,13 @@
 import React from 'react';
 import { useCalorieTracker } from '../hooks/useCalorieTracker';
-import { ChevronLeft, Search, Sparkles, Trash2 } from 'lucide-react';
+import { Camera, ChevronLeft, Search, Sparkles, Trash2 } from 'lucide-react';
 
 interface MealCategoryProps {
   category: 'breakfast' | 'lunch' | 'dinner' | 'snacks';
   onBack: () => void;
   onNavigateToSearch: () => void;
   onOpenAISheet: () => void;
+  onOpenMealPhoto: () => void;
 }
 
 export const MealCategory: React.FC<MealCategoryProps> = ({
@@ -14,6 +15,7 @@ export const MealCategory: React.FC<MealCategoryProps> = ({
   onBack,
   onNavigateToSearch,
   onOpenAISheet,
+  onOpenMealPhoto,
 }) => {
   const { meals, clearMeal, deleteMealItem, updateMealManual } = useCalorieTracker();
   const meal = meals[category];
@@ -85,13 +87,21 @@ export const MealCategory: React.FC<MealCategoryProps> = ({
       </div>
 
       {/* Helper Module Buttons */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-2.5">
         <button
           onClick={onNavigateToSearch}
           className="flex flex-col items-center justify-center bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 font-semibold p-4 rounded-2xl transition-all cursor-pointer space-y-2 active:scale-[0.98]"
         >
           <Search className="w-5 h-5" />
           <span className="text-xs">Baza produktów</span>
+        </button>
+
+        <button
+          onClick={onOpenMealPhoto}
+          className="flex flex-col items-center justify-center bg-teal-500/10 border border-teal-500/20 hover:bg-teal-500/20 text-teal-300 font-semibold p-4 rounded-2xl transition-all cursor-pointer space-y-2 active:scale-[0.98]"
+        >
+          <Camera className="w-5 h-5" />
+          <span className="text-xs">Zdjęcie posiłku</span>
         </button>
 
         <button

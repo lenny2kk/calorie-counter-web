@@ -3,9 +3,9 @@ import { formatContextForPrompt } from './dietitianContext';
 import type { DietitianContext } from './dietitianContext';
 import { FirebaseError } from 'firebase/app';
 
-const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
+export const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
 
-function cleanJsonResponse(text: string): string {
+export function cleanJsonResponse(text: string): string {
   let clean = text.trim();
   if (clean.startsWith('```json')) {
     clean = clean.substring(7);

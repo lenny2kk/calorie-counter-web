@@ -50,6 +50,7 @@ function InnerApp() {
   const [isDietitianOpen, setIsDietitianOpen] = useState(false);
   const [isAISheetOpen, setIsAISheetOpen] = useState(false);
   const [aiSheetCategory, setAiSheetCategory] = useState<MealCategoryId>('breakfast');
+  const [aiSheetWithCamera, setAiSheetWithCamera] = useState(false);
 
   if (firebaseInitError) {
     return (
@@ -99,8 +100,9 @@ function InnerApp() {
     setSubPage({ view: 'product-search', category });
   };
 
-  const openAISheet = (category: MealCategoryId) => {
+  const openAISheet = (category: MealCategoryId, withCamera = false) => {
     setAiSheetCategory(category);
+    setAiSheetWithCamera(withCamera);
     setIsAISheetOpen(true);
   };
 
@@ -144,6 +146,7 @@ function InnerApp() {
           onBack={navigateBack}
           onNavigateToSearch={() => navigateToSearch(subPage.category)}
           onOpenAISheet={() => openAISheet(subPage.category)}
+          onOpenMealPhoto={() => openAISheet(subPage.category, true)}
         />
       );
     }
@@ -240,6 +243,7 @@ function InnerApp() {
       <AISmartMealModal
         isOpen={isAISheetOpen}
         category={aiSheetCategory}
+        startWithCamera={aiSheetWithCamera}
         onClose={() => setIsAISheetOpen(false)}
       />
     </div>
